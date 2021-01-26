@@ -1,0 +1,191 @@
+#!/bin/bash
+#
+# Univention Container Mode - ucr-defaults
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+ucrcounter[times]=4
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## ucr defaults for container mode environment
+# language: <string> default(en_US)
+# encoding: <string> default(UTF-8)
+# timezone: <string> default(UTC)
+#
+# mawk vs gawk, fix regular expressions
+awk=gawk
+#
+which ${awk} >/dev/null 2>&1 || {
+	apt-get --verbose-versions --assume-yes --no-install-recommends install ${awk}
+	apt-mark auto ${awk}
+}
+#
+# set locale
+[[ ${language:-en_US} =~ ^en_US$ ]] && ucrchanges+=("locale=${language:-en_US}.${encoding:-UTF-8}:${encoding:-UTF-8}")
+[[ ${language:-en_US} =~ ^en_US$ ]] ||
+	univention-config-registry set "locale=en_US.UTF-8:UTF-8 ${language:-en_US}.${encoding:-UTF-8}:${encoding:-UTF-8}"
+#
+# set locale/default
+ucrchanges+=("locale/default=${language:-en_US}.${encoding:-UTF-8}:${encoding:-UTF-8}")
+#
+# set umc/web/language
+ucrchanges+=("umc/web/language=${language:-en_US}.${encoding:-UTF-8}:${encoding:-UTF-8}")
+#
+# set directory/manager/web/language
+ucrchanges+=("directory/manager/web/language=${language:-en_US}.${encoding:-UTF-8}")
+#
+# set timezone
+timedatectl set-timezone ${timezone:-UTC} >/dev/null 2>&1 && timedatectl --no-pager --no-ask-password status || {
+
+	Areas=$(
+		echo ${timezone:-UTC} | ${awk} '\
+		 /^[A-Z]{1}[a-z]{1,100}\/[A-Z]{1}[a-z]{1,100}$/{ split($1,X,"/"); printf X[1]  } \
+		!/^[A-Z]{1}[a-z]{1,100}\/[A-Z]{1}[a-z]{1,100}$/{                  printf ""    }'
+	)
+	Zones=$(
+		echo ${timezone:-UTC} | ${awk} '\
+		 /^[A-Z]{1}[a-z]{1,100}\/[A-Z]{1}[a-z]{1,100}$/{ split($1,X,"/"); printf X[2]  } \
+		!/^[A-Z]{1}[a-z]{1,100}\/[A-Z]{1}[a-z]{1,100}$/{                  printf "UTC" }'
+	)
+
+	[[ -z ${Areas} ]] && zone="${Zones}" || zone="${Areas}/${Zones}"
+
+	rm --force \
+		/etc/timezone \
+		/etc/localtime
+
+	echo ${zone} > \
+		/etc/timezone
+
+	ln --symbolic --force /usr/share/zoneinfo/${zone} \
+		/etc/localtime
+
+	dpkg-reconfigure -f noninteractive tzdata || /bin/true
+}
+#
+# set xorg/keyboard
+ucrchanges+=("xorg/keyboard/options/XkbLayout=$(
+	echo ${language:-en_US} | ${awk} '\
+		 /^[a-z]{2}_[A-Z]{2}$/{ split($1,X,"_"); printf tolower(X[2]) } \
+		!/^[a-z]{2}_[A-Z]{2}$/{                  printf "us" }'
+)")
+ucrchanges+=("xorg/keyboard/options/XkbModel=pc105")
+ucrchanges+=("xorg/keyboard/options/XkbOptions=")
+ucrchanges+=("xorg/keyboard/options/XkbVariant=")
+#
+# set ssl/{country,default/{bits,days,hashfunction},email,locality,organization,state}
+for key in country locality organization state; do
+	ucrchanges+=("ssl/${key}=$(
+		echo ${language:-en_US} | ${awk} '\
+		 /^[a-z]{2}_[A-Z]{2}$/{ split($1,X,"_"); printf X[2] } \
+		!/^[a-z]{2}_[A-Z]{2}$/{                  printf "US" }'
+	)")
+done
+ucrchanges+=("ssl/email=ssl@${domainname}")
+ucrchanges+=("ssl/organization=$(
+	echo ${domainname} |
+		awk '{ printf toupper($0) }'
+)")
+ucrchanges+=("ssl/default/bits=$(((${ucrcounter[times]} + 0) * 1024))")
+ucrchanges+=("ssl/default/days=$(((${ucrcounter[times]} + 1) * 365))")
+ucrchanges+=("ssl/default/hashfunction=sha$(((${ucrcounter[times]} + 0) * 128))")
+#
+# set ssl/host/extensions ( openssl x509v3 subjectAltName, authorityInfoAccess and crlDistributionPoints )
+ucrchanges+=("ssl/host/extensions=/usr/local/share/univention-ssl/extension.sh")
+#
+# set ldap/base
+ucrchanges+=("ldap/base=$(
+	echo ${domainname} | awk '\
+		{ \
+			split($1,DC,"."); \
+			for(i=1;DC[i]!="";i++){ \
+				if(DC[i+1]!=""){ printf "dc=%s,", DC[i] } else { printf "dc=%s", DC[i] } \
+			} \
+		}'
+)")
+#
+# set windows/domain
+ucrchanges+=("windows/domain=$(
+	echo ${domainname} | awk '\
+		{ \
+			split($1,DOMAIN,"."); \
+			printf toupper(DOMAIN[(( length(DOMAIN) - 1 ))]) \
+		}'
+)")
+#
+# set machine password length
+# ucrchanges+=("machine/password/length=$(((${ucrcounter[times]} + 0) * 16))")
+#
+# mawk vs gawk, fix regular expressions
+which ${awk} >/dev/null 2>&1 && {
+	apt-get --assume-yes remove ${awk}
+	apt-get --assume-yes autoremove
+}
+#
+## ucr defaults for container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	timezone \
+	language encoding \
+	hostname domainname \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

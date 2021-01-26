@@ -1,0 +1,162 @@
+#!/bin/bash
+#
+# Univention Container Mode - setup-post-join-cleanup
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+eval "$(ucr shell hostname domainname server/role)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## Setup post force join and cleanup in container mode environment
+#
+# check for temporary certificate(s)
+univention-config-registry get apache2/ssl/ca | egrep --quiet "^/var/cache/univention-system-setup" &&
+	univention-config-registry unset \
+		apache2/ssl/certificate \
+		apache2/ssl/key \
+		apache2/ssl/ca
+#
+# check join status and run force join scripts if needed
+univention-check-join-status 2>&1 | egrep --quiet "^Joined successfully" || {
+	[[ "${server_role}" == "domaincontroller_master" ]] && {
+		univention-run-join-scripts --force
+	}
+	[[ "${server_role}" != "domaincontroller_master" ]] && {
+		[[ ${#dcuser} -eq 0 && ${#dcpass} -eq 0 ]] ||
+			univention-run-join-scripts --force \
+				-dcaccount ${dcuser:-} \
+				-dcpwd <(echo -n ${dcpass:-})
+	}
+}
+#
+# check join status and cleanup
+univention-check-join-status 2>&1 | egrep --quiet "^Joined successfully" && {
+	#
+	# init kerberos on local machine
+	kinit --password-file=/etc/machine.secret ${hostname}\$@$(ucr get kerberos/realm) || /bin/true
+	#
+	# set force symbolic link ucs-root-ca.crt and ucsCA.crl for http(s) server
+	rm --force --verbose /var/www/ucs-root-ca.crt /var/www/ucsCA.crl && {
+		[[ -f /etc/univention/ssl/ucsCA/CAcert.pem ]] &&
+			ln \
+				--force \
+				--symbolic \
+				/etc/univention/ssl/ucsCA/CAcert.pem \
+				/var/www/ucs-root-ca.crt
+		[[ -f /etc/univention/ssl/ucsCA/crl/ucsCA.crl ]] &&
+			ln \
+				--force \
+				--symbolic \
+				/etc/univention/ssl/ucsCA/crl/ucsCA.crl \
+				/var/www/ucsCA.crl
+	}
+	#
+	# verify and show root certificate
+	[[ -f /etc/univention/ssl/ucsCA/CAcert.pem ]] && {
+		openssl verify /etc/univention/ssl/ucsCA/CAcert.pem &&
+			openssl x509 -noout -text -in \
+				/etc/univention/ssl/ucsCA/CAcert.pem || /bin/true
+	}
+	#
+	# verify and show host certificate(s)
+	for cert in ${hostname} ucs-sso; do
+		openssl verify /etc/univention/ssl/${cert}.${domainname}/cert.pem &&
+			openssl x509 -noout -text -in \
+				/etc/univention/ssl/${cert}.${domainname}/cert.pem || /bin/true
+	done
+	#
+	# show certificate revocation list
+	[[ -f /etc/univention/ssl/ucsCA/crl/crl.pem ]] &&
+		openssl crl -noout -text -in \
+			/etc/univention/ssl/ucsCA/crl/crl.pem || /bin/true
+	#
+	# set certificate(s) permission
+	getent group DC\ Backup\ Hosts && {
+		chown root:DC\ Backup\ Hosts \
+			--recursive \
+			--verbose \
+			/etc/univention/ssl
+		chmod g+rwX \
+			--recursive \
+			--verbose \
+			/etc/univention/ssl
+		chown ${hostname}\$:DC\ Backup\ Hosts \
+			--recursive \
+			--verbose \
+			/etc/univention/ssl/${hostname} /etc/univention/ssl/${hostname}.${domainname}
+	}
+	#
+	# set certificate(s) permission for slave hosts
+	getent group DC\ Slave\ Hosts && {
+		chown root:DC\ Slave\ Hosts \
+			--verbose \
+			/etc/univention/ssl/ucsCA/CAcert.pem
+	}
+}
+#
+## Setup post force join and cleanup in container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	server_role \
+	dcpass dcuser \
+	hostname domainname \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

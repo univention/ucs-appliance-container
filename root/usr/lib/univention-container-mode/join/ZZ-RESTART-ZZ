@@ -1,0 +1,124 @@
+#!/bin/bash
+#
+# Univention Container Mode - restart
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+# eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## restart the container mode environment
+#
+if [[ -e /var/univention-join/joined ]]; then
+	if [[ ${RESTART-} =~ ^1|yes|true|YES|TRUE$ ]]; then
+		#
+		# restart the whole container by init 0
+		bash -c 'sleep 5 && init 0' &
+	else
+		#
+		# stop all univention service unit(s)
+		for service in $(find /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system -type l -name univention* -exec basename {} \;); do
+			echo ${service} | egrep --silent --invert-match "^univention-container-mode" && {
+				systemctl stop --force -- ${service} || /bin/true
+			}
+		done
+		#
+		# stop all univention init.d service unit(s)
+		find \
+			/etc/init.d \
+			-executable \
+			-name univention* \
+			-type f \
+			-exec {} stop \; >/dev/null 2>&1 || /bin/true
+		#
+		# restart service unit(s)
+		for service in docker; do
+			systemctl restart -- ${service}.service >/dev/null 2>&1 || /bin/true
+		done
+		#
+		# start all univention init.d service unit(s)
+		find \
+			/etc/init.d \
+			-executable \
+			-name univention* \
+			-type f \
+			-exec {} start \; >/dev/null 2>&1 || /bin/true
+		#
+		# start all univention service unit(s)
+		for service in $(find /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system -type l -name univention* -exec basename {} \;); do
+			echo ${service} | egrep --silent --invert-match "^univention-container-mode" && {
+				systemctl start -- ${service} || /bin/true
+			}
+		done
+		#
+		# restart univention-container-mode-fixes
+		systemctl restart -- univention-container-mode-fixes.service
+		#
+		# reload systemd daemon
+		systemctl daemon-reload
+	fi
+fi
+#
+## restart the container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

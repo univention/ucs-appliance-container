@@ -1,0 +1,592 @@
+#!/bin/bash
+#
+# Univention Container Mode - setup-pre-certificate
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+function writeCertificate() { # writeCertificate: IN(${@})=>OUT(write certificate file by path)
+	local type=${1}
+	local base=${2}
+	local path=${3}
+	local proc=${4:-}
+	local info=${5:-}
+
+	[[ ${base} =~ ^$|null ]] || [[ -z ${path} ]] || case ${type} in
+	rsa | dsa | ecdsa) {
+		ALG=$(echo ${type} | awk '/^ec/{ printf "EC" } !/^ec/{ printf toupper($0) }')
+		if [[ ${#info} -eq 0 ]]; then
+			cat <<EOF >${path}
+-----BEGIN ${ALG} PRIVATE KEY-----
+$(echo ${base} | fold --width 64)
+-----END ${ALG} PRIVATE KEY-----
+EOF
+		else
+			cat <<EOF >${path}
+-----BEGIN ${ALG} PRIVATE KEY-----
+Proc-Type: ${proc}
+DEK-Info: ${info}
+
+$(echo ${base} | fold --width 64)
+-----END ${ALG} PRIVATE KEY-----
+EOF
+		fi
+	} ;;
+	pub) {
+		cat <<EOF >${path}
+-----BEGIN PUBLIC KEY-----
+$(echo ${base} | fold --width 64)
+-----END PUBLIC KEY-----
+EOF
+	} ;;
+	crt) {
+		cat <<EOF >${path}
+-----BEGIN CERTIFICATE-----
+$(echo ${base} | fold --width 64)
+-----END CERTIFICATE-----
+EOF
+	} ;;
+	req) {
+		cat <<EOF >${path}
+-----BEGIN CERTIFICATE REQUEST-----
+$(echo ${base} | fold --width 64)
+-----END CERTIFICATE REQUEST-----
+EOF
+	} ;;
+	crl) {
+		cat <<EOF >${path}
+-----BEGIN X509 CRL-----
+$(echo ${base} | fold --width 64)
+-----END X509 CRL-----
+EOF
+	} ;;
+	esac
+	return
+}
+
+## ucr shell
+eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## Prepare setup from container mode environment
+#
+# {
+#   "root": {
+#     "certificate":{"req":"single line <string(base64)>","crt":"single line <string(base64)>","crl":"single line <string(base64)>"},
+#     "rsa":{
+#       "key":{"private":"single line <string(base64)>","public":"single line <string(base64)>"},
+#       "encryption":{"encrypted":true,"version":4,"algorithm":"<string>","password":"<string>","salt":"<string(hex)>"}
+#     }
+#   },
+#   "host": {
+#     "fqdn": "${hostname}.${domainname}",
+#     "certificate": {"req": "single line <string(base64)>","crt": "single line <string(base64)>"},
+#     "rsa": {"key": {"private": "single line <string(base64)>","public": "single line <string(base64)>"}}
+#   },
+#   "sso": {
+#     "fqdn": "ucs-sso.${domainname}",
+#     "certificate": {"req": "single line <string(base64)>","crt": "single line <string(base64)>"},
+#     "rsa": {"key": {"private": "single line <string(base64)>","public": "single line <string(base64)>"}}
+#   }
+# }
+#
+CertificateCommand="univention-certificate"
+CertificatePackage="univention-ssl"
+CertificateBaseDir="/etc/univention/ssl"
+#
+# speedup first certificate(s), ldap isn't configured
+#
+univention-config-registry set \
+	"ldap/client/retry/count=0"
+ucrchanges+=(
+	"ldap/client/retry/count=10"
+)
+#
+# install depend package(s)
+#
+which ${CertificateCommand} >/dev/null 2>&1 || {
+	apt-get --verbose-versions --assume-yes --no-install-recommends install ${CertificatePackage}
+	apt-mark auto ${CertificatePackage}
+}
+#
+# import certificates
+#
+[[ -z ${certificates:-} ]] || {
+	json=jq
+
+	which ${json} >/dev/null 2>&1 || {
+		apt-get --verbose-versions --assume-yes --no-install-recommends install ${json}
+		apt-mark auto ${json}
+	}
+
+	which ${json} >/dev/null 2>&1 && {
+		JSON="${json} --raw-output"
+		#
+		# check json and try to import the certificate(s)
+		echo ${certificates} | ${JSON} 'keys | .[]' >/dev/null 2>&1 && {
+			source /usr/share/univention-ssl/make-certificates.sh && {
+
+				# remove force the old certificates from install
+				rm --force --recursive --verbose ${CertificateBaseDir}
+
+				# create directories and set permission
+				mkdir --parents --mode=0755 ${CertificateBaseDir}/ucsCA/{certs,crl,newcerts,private} &&
+					chmod 0700 ${CertificateBaseDir}/ucsCA
+
+				# create openssl files and set the first and second serial
+				touch ${CertificateBaseDir}/ucsCA/{index.txt,index.txt.old,index.txt.attr,serial,serial.old} && {
+					echo "unique_subject = no" >${CertificateBaseDir}/ucsCA/index.txt.attr
+					echo 00 >${CertificateBaseDir}/ucsCA/serial.old
+					echo 01 >${CertificateBaseDir}/ucsCA/serial
+				}
+
+				# save root certificate ( signkey with passphrase, private and public key )
+				for algorithm in $(echo ${certificates} | ${JSON} '.root | keys[]'); do
+					case ${algorithm} in
+					rsa | dsa | ecdsa) { # get encrypted root certificate signkey with passphrase and save the private and public key too
+						encryption=".root.${algorithm}.encryption"
+						[[ $(echo ${certificates} | ${JSON} "${encryption}.encrypted") =~ ^1|yes|true|YES|TRUE$ ]] && {
+
+							# save sign key passphrase
+							echo ${certificates} | ${JSON} "${encryption}.password" | tr --delete '\n' > \
+								${CertificateBaseDir}/password
+
+							# save sign key
+							writeCertificate ${algorithm} "$(echo ${certificates} | ${JSON} "${encryption}.signkey")" \
+								${CertificateBaseDir}/ucsCA/private/CAkey.pem \
+								"$(echo ${certificates} | ${JSON} "${encryption}.version"),ENCRYPTED" \
+								"$(echo ${certificates} | ${JSON} "${encryption}.algorithm"),$(echo ${certificates} | ${JSON} "${encryption}.salt")"
+
+							# save and convert sign key algorithm/cipher into univention-config-registry
+							ALG=$(echo ${certificates} | ${JSON} "${encryption}.algorithm")
+							[[ ${ALG} =~ ^AES ]] && { # match(aes128|aes192|aes256)
+								univention-config-registry set ssl/ca/cipher=$(echo ${ALG} | awk '{ split($0,ALG,"-"); printf "%s%s", tolower(ALG[1]), ALG[2] }')
+							}
+							[[ ${ALG} =~ ^DES ]] && { # match(des|des3)
+								univention-config-registry set ssl/ca/cipher=$(echo ${ALG} | awk '{ split($0,ALG,"-"); printf "%s"  , tolower(ALG[1]) }')
+							}
+
+							# check sign key and get modulus
+							openssl ${algorithm} \
+								-check \
+								-noout \
+								-passin pass:$(<${CertificateBaseDir}/password) \
+								-in ${CertificateBaseDir}/ucsCA/private/CAkey.pem && {
+								eval $(
+									openssl ${algorithm} \
+										-modulus \
+										-noout \
+										-passin pass:$(<${CertificateBaseDir}/password) \
+										-in ${CertificateBaseDir}/ucsCA/private/CAkey.pem
+								)
+							}
+
+							# try to save unencrypted private key
+							writeCertificate ${algorithm} "$(echo ${certificates} | ${JSON} ".root.${algorithm}.key.private")" \
+								${CertificateBaseDir}/ucsCA/private.key
+
+							# check unencrypted private key format or generate a new one
+							openssl ${algorithm} \
+								-noout \
+								-inform PEM \
+								-in ${CertificateBaseDir}/ucsCA/private.key ||
+								openssl ${algorithm} \
+									-outform PEM \
+									-passin pass:$(<${CertificateBaseDir}/password) \
+									-in ${CertificateBaseDir}/ucsCA/private/CAkey.pem \
+									-out ${CertificateBaseDir}/ucsCA/private.key
+
+							# try to save ( unencrypted ) public key
+							writeCertificate pub "$(echo ${certificates} | ${JSON} ".root.${algorithm}.key.public")" \
+								${CertificateBaseDir}/ucsCA/public.key
+
+							# check ( unencrypted ) public key format or generate a new one
+							openssl ${algorithm} \
+								-noout \
+								-pubin \
+								-inform PEM \
+								-in ${CertificateBaseDir}/ucsCA/public.key ||
+								openssl ${algorithm} \
+									-pubout \
+									-outform PEM \
+									-passin pass:$(<${CertificateBaseDir}/password) \
+									-in ${CertificateBaseDir}/ucsCA/private/CAkey.pem \
+									-out ${CertificateBaseDir}/ucsCA/public.key
+						}
+					} ;;
+					esac
+				done
+
+				# modulus sign key
+				ModulusSignKey=${Modulus}
+
+				# save root certificate ( crt )
+				writeCertificate crt "$(echo ${certificates} | ${JSON} .root.certificate.crt)" \
+					${CertificateBaseDir}/ucsCA/CAcert.pem
+
+				# check root certificate with modulus match form private key and prepare to update the ca trust pool
+				eval $(openssl x509 -noout -modulus -in ${CertificateBaseDir}/ucsCA/CAcert.pem)
+				[[ ${ModulusSignKey} == ${Modulus} ]] && {
+					ln \
+						--force \
+						--symbolic \
+						${CertificateBaseDir}/ucsCA/CAcert.pem \
+						/usr/local/share/ca-certificates/ucsCA.crt
+				}
+
+				# extract root certificate subject and save it into univention-config-registry
+				openssl x509 -noout -subject -in ${CertificateBaseDir}/ucsCA/CAcert.pem | awk '\
+					/^subject=/{ \
+						gsub(/^subject=/, "", $0); \
+						split($0,SUBJECT,", "); \
+						for(i=1;SUBJECT[i]!="";i++){ \
+							gsub(/\s=\s/          , "="                       , SUBJECT[i]); \
+							gsub(/ = /            , "="                       , SUBJECT[i]); \
+							gsub(/^C=/            , "ssl/country="            , SUBJECT[i]); \
+							gsub(/^ST=/           , "ssl/state="              , SUBJECT[i]); \
+							gsub(/^L=/            , "ssl/locality="           , SUBJECT[i]); \
+							gsub(/^O=/            , "ssl/organization="       , SUBJECT[i]); \
+							gsub(/^OU=/           , "ssl/organizationalunit=" , SUBJECT[i]); \
+							gsub(/^CN=/           , "ssl/common="             , SUBJECT[i]); \
+							gsub(/^emailAddress=/ , "ssl/email="              , SUBJECT[i]); \
+							printf "\"%s\" ", SUBJECT[i]; \
+						} \
+					}' | xargs --no-run-if-empty univention-config-registry set || /bin/true
+
+				# try to save root certificate request ( req )
+				writeCertificate req "$(echo ${certificates} | ${JSON} .root.certificate.req)" \
+					${CertificateBaseDir}/ucsCA/CAreq.pem
+
+				# check root certificate ( maybe the request ) with modulus match form private key and
+				#  prepare to use ${CertificateCommand} from /usr/share/univention-ssl/make-certificates.sh
+				eval $(openssl req -noout -modulus -in ${CertificateBaseDir}/ucsCA/CAreq.pem)
+				[[ ${ModulusSignKey} == ${Modulus} ]] && {
+					install --mode=0600 \
+						${CertificateBaseDir}/ucsCA/CAcert.pem \
+						${CertificateBaseDir}/ucsCA/newcerts/00.pem
+					move_cert \
+						${CertificateBaseDir}/ucsCA/newcerts/00.pem
+					mk_config \
+						${CertificateBaseDir}/openssl.cnf \
+						$(<${CertificateBaseDir}/password) \
+						"$(ucr get ssl/default/days)" \
+						"$(ucr get ssl/common)"
+				}
+
+				# try to save root certificate revocation list ( crl )
+				writeCertificate crl "$(echo ${certificates} | ${JSON} .root.certificate.crl)" \
+					${CertificateBaseDir}/ucsCA/crl/crl.pem
+
+				# verify ( maybe self signed ) root certificate and update ca trust pool
+				openssl verify ${CertificateBaseDir}/ucsCA/CAcert.pem ||
+					openssl verify -CAfile /usr/local/share/ca-certificates/ucsCA.crt ${CertificateBaseDir}/ucsCA/CAcert.pem &&
+					update-ca-certificates --fresh
+
+				# verify root certificate request or generate a new one
+				openssl req -verify -noout -in ${CertificateBaseDir}/ucsCA/CAreq.pem ||
+					openssl x509 -x509toreq \
+						-signkey ${CertificateBaseDir}/ucsCA/private/CAkey.pem \
+						-in ${CertificateBaseDir}/ucsCA/CAcert.pem \
+						-out ${CertificateBaseDir}/ucsCA/CAreq.pem \
+						-passin pass:$(<${CertificateBaseDir}/password)
+
+				# verify root certificate revocation list or generate a new one
+				openssl crl -verify -noout -in ${CertificateBaseDir}/ucsCA/crl/crl.pem ||
+					openssl ca \
+						-batch \
+						-gencrl \
+						-config ${CertificateBaseDir}/openssl.cnf \
+						-out ${CertificateBaseDir}/ucsCA/crl/crl.pem \
+						-passin pass:$(<${CertificateBaseDir}/password)
+
+				# save root certificate revocation list ( crl ) to der form
+				openssl crl -verify -noout -in ${CertificateBaseDir}/ucsCA/crl/crl.pem &&
+					openssl crl \
+						-in ${CertificateBaseDir}/ucsCA/crl/crl.pem \
+						-out ${CertificateBaseDir}/ucsCA/crl/ucsCA.crl \
+						-outform der
+
+				# try to save host and sso certificate(s)
+				for certificate in host sso; do
+					FQDN=$(echo ${certificates} | ${JSON} ".${certificate}.fqdn")
+
+					# check json
+					[[ ${FQDN} =~ ^$|null ]] && continue || unset Modulus
+
+					# create directory and set permission
+					mkdir --parents --mode=0755 ${CertificateBaseDir}/${FQDN} && {
+
+						# save host certificate ( private and public key without passphrase )
+						for algorithm in $(echo ${certificates} | ${JSON} ".${certificate} | keys[]"); do
+							case ${algorithm} in
+							rsa | dsa | ecdsa) { # get none encrypted host certificate private key and save the public key too
+
+								# save private key
+								writeCertificate ${algorithm} "$(echo ${certificates} | ${JSON} ".${certificate}.${algorithm}.key.private")" \
+									${CertificateBaseDir}/${FQDN}/private.key
+
+								# check private key and get modulus
+								openssl ${algorithm} \
+									-check \
+									-noout \
+									-in ${CertificateBaseDir}/${FQDN}/private.key && {
+									eval $(
+										openssl ${algorithm} \
+											-modulus \
+											-noout \
+											-in ${CertificateBaseDir}/${FQDN}/private.key
+									)
+								}
+
+								# try to save public key
+								writeCertificate pub "$(echo ${certificates} | ${JSON} ".${certificate}.${algorithm}.key.public")" \
+									${CertificateBaseDir}/${FQDN}/public.key
+
+								# check public key format or generate a new one
+								openssl ${algorithm} \
+									-noout \
+									-pubin \
+									-inform PEM \
+									-in ${CertificateBaseDir}/${FQDN}/public.key ||
+									openssl ${algorithm} \
+										-pubout \
+										-outform PEM \
+										-in ${CertificateBaseDir}/${FQDN}/private.key \
+										-out ${CertificateBaseDir}/${FQDN}/public.key
+							} ;;
+							esac
+						done
+
+						# modulus private key
+						ModulusPrivateKey=${Modulus:-}
+
+						# save host certificate ( crt )
+						writeCertificate crt "$(echo ${certificates} | ${JSON} ".${certificate}.certificate.crt")" \
+							${CertificateBaseDir}/${FQDN}/cert.pem
+
+						# save host certificate request ( req )
+						writeCertificate req "$(echo ${certificates} | ${JSON} ".${certificate}.certificate.req")" \
+							${CertificateBaseDir}/${FQDN}/req.pem
+
+						# generate host certificate openssl config from /usr/share/univention-ssl/make-certificates.sh
+						# openssl version <  1.1.1
+						mk_config \
+							${CertificateBaseDir}/${FQDN}/openssl.cnf \
+							"" \
+							"$(ucr get ssl/default/days)" \
+							"${FQDN}" \
+							"$(
+								openssl x509 -noout -text -in ${CertificateBaseDir}/${FQDN}/cert.pem |
+									grep -oP '(?<=DNS:|IP Address:)[^,]+' | awk 1 ORS=" "
+							)"
+						# openssl version >= 1.1.1 ( https://github.com/openssl/openssl/issues/3932 )
+						# mk_config \
+						# 	${CertificateBaseDir}/${FQDN}/openssl.cnf \
+						# 	"" \
+						# 	"$(ucr get ssl/default/days)" \
+						# 	"${FQDN}" \
+						# 	"$(
+						# 		openssl x509 -noout -ext subjectAltName -in ${CertificateBaseDir}/${FQDN}/cert.pem
+						# 	)"
+						# generate host certificate openssl config from /usr/share/univention-ssl/make-certificates.sh
+
+						# check and verify host certificate with modulus match form private key
+						eval $(openssl x509 -noout -modulus -in ${CertificateBaseDir}/${FQDN}/cert.pem)
+						[[ ${ModulusPrivateKey} == ${Modulus} ]] &&
+							openssl verify \
+								${CertificateBaseDir}/${FQDN}/cert.pem || unset ModulusPrivateKey
+
+						# check and verify host certificate request with modulus match form private key
+						eval $(openssl req -noout -modulus -in ${CertificateBaseDir}/${FQDN}/req.pem)
+						[[ ${ModulusPrivateKey} == ${Modulus} ]] &&
+							openssl req -verify -noout -in \
+								${CertificateBaseDir}/${FQDN}/req.pem || unset ModulusPrivateKey
+
+						# check and verify host certificate ( request ) with modulus match form private key failed
+						[[ -z ${ModulusPrivateKey} ]] || unset ModulusPrivateKey &&
+							rm --force --recursive --verbose \
+								${CertificateBaseDir}/${FQDN}
+					}
+				done
+
+				C=$(ucr get ssl/country)
+				ST=$(ucr get ssl/state)
+				L=$(ucr get ssl/locality)
+				O=$(ucr get ssl/organization)
+				OU=$(ucr get ssl/organizationalunit)
+				emailAddress=$(ucr get ssl/email)
+
+				# set openssl serial(s) and fix the index
+				for i in {0..2}; do
+					[[ ${i} =~ ^0$ ]] && { # root certificate
+						CN=$(ucr get ssl/common | sed 's/\s(.*//g')
+						CPATH=${CertificateBaseDir}/ucsCA/CAcert.pem
+					}
+
+					[[ ${i} =~ ^1$ ]] && { # host certificate
+						CN=${hostname}.${domainname}
+						CPATH=${CertificateBaseDir}/${CN}/cert.pem
+					}
+
+					[[ ${i} =~ ^2$ ]] && { # sso certificate
+						CN=ucs-sso.${domainname}
+						CPATH=${CertificateBaseDir}/${CN}/cert.pem
+					}
+
+					# verify certificate and check the subject
+					[[ -f ${CPATH} ]] && openssl verify ${CPATH} && openssl x509 -noout -subject -in ${CPATH} | egrep --silent -- "${CN}" && {
+						STATE="V"
+						# get certificate enddate
+						EDATE=$(date --date "$(
+							openssl x509 -noout -enddate -in ${CPATH} | sed 's/^notAfter=//g'
+						)" --utc "+%y%m%d%H%M%SZ")
+						# get certificate serial
+						eval $(
+							openssl x509 -noout -serial -in ${CPATH}
+						)
+
+						# save old openssl serial and set the next serial
+						install --mode=0600 \
+							${CertificateBaseDir}/ucsCA/serial \
+							${CertificateBaseDir}/ucsCA/serial.old
+						echo $(echo 0$((${i} + 1))) > \
+							${CertificateBaseDir}/ucsCA/serial
+
+						# save old openssl index file
+						install --mode=0600 \
+							${CertificateBaseDir}/ucsCA/index.txt \
+							${CertificateBaseDir}/ucsCA/index.txt.old
+
+						# add verifyed certificate to openssl index file
+						printf "%s\t%s\t\t%s\t%s\t%s\n" ${STATE} ${EDATE} ${serial} ${CPATH} \
+							"/C=${C}/ST=${ST}/L=${L}/O=${O}/OU=${OU}/CN=${CN}/emailAddress=${emailAddress}" >> \
+							${CertificateBaseDir}/ucsCA/index.txt
+
+						# show verifyed certificate in text mode and unset openssl serial
+						openssl x509 -noout -text -in ${CPATH} && unset serial
+					}
+				done
+
+				# check host certificate symbolic link
+				[[ -L ${CertificateBaseDir}/${hostname} ]] || {
+					cd ${CertificateBaseDir} && {
+						[[ -d ${CertificateBaseDir}/${hostname}.${domainname} ]] &&
+							ln \
+								--force \
+								--symbolic \
+								${hostname}.${domainname} \
+								${hostname}
+					}
+				}
+
+				# set default certificate(s) permission
+				find ${CertificateBaseDir} \
+					-type f -exec chmod 0640 --verbose {} + , \
+					-type d -exec chmod 0755 --verbose {} +
+				chmod 0644 ${CertificateBaseDir}/ucsCA/CAcert.pem
+				chmod 0644 ${CertificateBaseDir}/ucsCA/crl/ucsCA.crl
+
+				# try to set certificate(s) permission
+				getent group DC\ Backup\ Hosts && {
+					chown root:DC\ Backup\ Hosts \
+						--recursive \
+						--verbose \
+						${CertificateBaseDir}
+					[[ -d ${CertificateBaseDir}/${hostname}.${domainname} ]] &&
+						chown ${hostname}\$:DC\ Backup\ Hosts \
+							--recursive \
+							--verbose \
+							${CertificateBaseDir}/${hostname} ${CertificateBaseDir}/${hostname}.${domainname}
+				}
+
+				# try to set certificate(s) permission for slave hosts
+				getent group DC\ Slave\ Hosts && {
+					chown root:DC\ Slave\ Hosts \
+						--verbose \
+						${CertificateBaseDir}/ucsCA/CAcert.pem
+				}
+			}
+		}
+	}
+}
+#
+# generate host certificate if needed
+#
+which ${CertificateCommand} >/dev/null 2>&1 && {
+	${CertificateCommand} check -name ${hostname}.${domainname} ||
+		${CertificateCommand} new -name ${hostname}.${domainname}
+
+	# check host certificate symbolic link
+	[[ -L ${CertificateBaseDir}/${hostname} ]] || {
+		cd ${CertificateBaseDir} &&
+			ln \
+				--force \
+				--symbolic \
+				${hostname}.${domainname} \
+				${hostname}
+	}
+
+	# list all certificates
+	${CertificateCommand} list-all
+}
+#
+## Prepare setup from container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	certificates \
+	hostname domainname \
+	Modulus ModulusSignKey ModulusPrivateKey \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

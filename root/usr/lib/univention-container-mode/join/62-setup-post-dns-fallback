@@ -1,0 +1,133 @@
+#!/bin/bash
+#
+# Univention Container Mode - setup-post-dns-fallback
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+eval "$(ucr shell hostname domainname server/role ldap/base)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+ucrcommit[resolv.conf]=/etc/resolv.conf
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## Setup domain-name-service fallback for container mode environment
+#
+UniventionSystemRepositoryHostname=$(ucr get repository/online/server | awk -F/ '{print $3}')
+#
+# fallback localhost
+FallBackLocalhost=("::1" "127.0.0.1" "127.0.1.1")
+#
+# fallback resolver
+FallBackResolver=("1.1.1.1" "8.8.8.8" "9.9.9.9")
+#
+# check all nameserver dig @nameserver host +short
+NS=FALSE
+for i in {1..3}; do
+	[[ -z $(ucr get nameserver${i}) ]] || {
+		ping -c 3 -W 3 $(ucr get nameserver${i}) >/dev/null 2>&1 || /bin/true && {
+			dig \
+				@$(ucr get nameserver${i}) \
+				${UniventionSystemRepositoryHostname} +short >/dev/null 2>&1 && NS=TRUE || /bin/true
+		}
+	}
+done
+#
+# check all dns/forwarder dig @dns/forwarder host +short
+FW=FALSE
+for i in {1..3}; do
+	[[ -z $(ucr get dns/forwarder${i}) ]] || {
+		ping -c 3 -W 3 $(ucr get dns/forwarder${i}) >/dev/null 2>&1 || /bin/true && {
+			dig \
+				@$(ucr get dns/forwarder${i}) \
+				${UniventionSystemRepositoryHostname} +short >/dev/null 2>&1 && FW=TRUE || /bin/true
+		}
+	}
+done
+#
+# check domain-name-service
+dig ${UniventionSystemRepositoryHostname} +short >/dev/null 2>&1 || {
+	[[ ${NS} =~ ^TRUE$ ]] && univention-config-registry commit /etc/resolv.conf
+	[[ ${FW} =~ ^FALSE$ ]] && {
+		dig ${UniventionSystemRepositoryHostname} +short >/dev/null 2>&1 ||
+			univention-config-registry set \
+				"nameserver1=${FallBackLocalhost[0]}" "nameserver2=${FallBackLocalhost[1]}" "nameserver3=${FallBackLocalhost[2]}" \
+				"dns/forwarder1=${FallBackResolver[0]}" "dns/forwarder2=${FallBackResolver[1]}" "dns/forwarder3=${FallBackResolver[2]}"
+	}
+}
+#
+# set force localhost nameserver for system role master
+[[ "${server_role}" == "domaincontroller_master" ]] && {
+	univention-config-registry set \
+		"nameserver1=${FallBackLocalhost[0]}" "nameserver2=${FallBackLocalhost[1]}" "nameserver3=${FallBackLocalhost[2]}"
+	[[ ${FW} =~ ^FALSE$ ]] &&
+		univention-config-registry set \
+			"dns/forwarder1=${FallBackResolver[0]}" "dns/forwarder2=${FallBackResolver[1]}" "dns/forwarder3=${FallBackResolver[2]}"
+}
+#
+# restart service unit(s)
+for service in apache2 bind9; do
+	systemctl restart -- ${service}.service >/dev/null 2>&1 || /bin/true
+done
+#
+## Setup domain-name-service fallback for container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	hostname domainname \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

@@ -1,0 +1,119 @@
+#!/bin/bash
+#
+# Univention Container Mode - DinD ( Docker in Docker )
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+# eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## DinD for container mode environment
+#
+mountpoint /var/lib/docker >/dev/null 2>&1 && { # DinD YES/NO ?
+	rm -rfv /var/lib/docker/* /var/lib/containerd/*
+
+	BashCompletion=/etc/bash_completion.d
+	ServiceUnitList="containerd.service docker.socket docker.service"
+
+	for i in unmask enable start; do
+		systemctl ${i} -- ${ServiceUnitList} || /bin/true
+	done
+
+	docker version >/dev/null 2>&1 && { # DinD YES
+		ucrchanges+=("docker/daemon/default/opts/bip=172.31.31.1/16")
+		ucrchanges+=("appcenter/docker/compose/network=172.30.30.1/16")
+
+		[[ -d ${BashCompletion} ]] && {
+			which docker >/dev/null 2>&1 && {
+				curl \
+					--location https://raw.githubusercontent.com/docker/docker-ce/$(docker version --format '{{.Server.Version}}' | grep -Po "\d+\.\d+")/components/cli/contrib/completion/bash/docker \
+					--silent --fail &&
+					curl \
+						--location https://raw.githubusercontent.com/docker/docker-ce/$(docker version --format '{{.Server.Version}}' | grep -Po "\d+\.\d+")/components/cli/contrib/completion/bash/docker \
+						--silent --output ${BashCompletion}/docker
+			}
+			which docker-compose >/dev/null 2>&1 && {
+				curl \
+					--location https://raw.githubusercontent.com/docker/compose/$(docker-compose version --short)/contrib/completion/bash/docker-compose \
+					--silent --fail &&
+					curl \
+						--location https://raw.githubusercontent.com/docker/compose/$(docker-compose version --short)/contrib/completion/bash/docker-compose \
+						--silent --output ${BashCompletion}/docker-compose
+			}
+		}
+		systemctl restart -- ${ServiceUnitList} || /bin/true
+	}
+
+	docker version >/dev/null 2>&1 || { # DinD NO
+		ucrchanges+=("appcenter/docker=false")
+
+		for i in stop disable mask; do
+			systemctl ${i} -- ${ServiceUnitList} || /bin/true
+		done
+	}
+
+}
+#
+## DinD for container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

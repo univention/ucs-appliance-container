@@ -1,0 +1,134 @@
+#!/bin/bash
+#
+# Univention Container Mode - network
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+# eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+declare -A network
+network[ipv4]=4
+network[ipv6]=6
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## Set network config from container mode environment
+#
+for version in ${network[@]}; do
+	# get default interface from ip -(4|6) route list
+	#
+	network[routelist]=$(ip -${version} route list | awk ' /^default/{ print $0 }' | head -1) # default via <address> dev <interface>
+	network[interface]=$(echo ${network[routelist]} | awk '/^default/{ for (I=1;I<=NF;I++) if ( $I=="dev" ) { print $(I+1) } }')
+	network[gateway]=$(echo ${network[routelist]} | awk '  /^default/{ for (I=1;I<=NF;I++) if ( $I=="dev" ) { print $(I-1) } }')
+	[[ -z ${network[interface]:-} ]] || {
+		network[addresses]=$(ip -${version} address show scope global dev ${network[interface]} | egrep "^*inet") # inet* <address>/<cidr> [brd <broadcast>] scope global <interface>
+		network[broadcast]=$(echo ${network[addresses]} | awk '/inet.*brd/{ for (I=1;I<=NF;I++) if ( $I=="brd" ) { print $(I+1) } }')
+		network[address]=$(echo ${network[addresses]} | awk '/inet/{ split($2,IP,"/"); printf IP[1] }') # get only first match in awk by $2
+		network[cidr]=$(echo ${network[addresses]} | awk '   /inet/{ split($2,IP,"/"); printf IP[2] }') # get only first match in awk by $2
+
+		ucrchanges+=("interfaces/primary=${network[interface]}")
+
+		echo "NETWORK IPv${version} INTERFACE(${network[interface]}) ADDRESS(${network[address]}/${network[cidr]}) GATEWAY(${network[gateway]})"
+	}
+	#
+	# set network config from ip -6 route list and ip -6 address show scope global dev <interface>
+	#
+	[[ ${version} == 6 && ${#network[interface]} != 0 ]] && {
+		# network[network]=$(ip -${version} route list | awk '/^.*\/'${network[cidr]}'.*'${network[interface]}'.*src.*'${network[address]}'/{ split($1,IP,"/"); printf IP[1] }')
+		# network[netmask]=$(netmask ${network[cidr]})
+
+		if [[ "${network[gateway]}" != "$(ucr get ipv${version}/gateway)" ]]; then
+			ucrchanges+=("ipv${version}/gateway=${network[gateway]}")
+		fi
+
+		ucrchanges+=(
+			"interfaces/${network[interface]}/ipv${version}/default/address=${network[address]}"
+			"interfaces/${network[interface]}/ipv${version}/default/prefix=${network[cidr]}"
+		)
+	}
+	#
+	# set network config from ip -4 route list and ip -4 address show scope global dev <interface>
+	#
+	[[ ${version} == 4 && ${#network[interface]} != 0 ]] && {
+		network[network]=$(ip -${version} route list | awk '/^.*\/'${network[cidr]}'.*'${network[interface]}'.*src.*'${network[address]}'/{ split($1,IP,"/"); printf IP[1] }')
+		network[netmask]=$(netmask ${network[cidr]})
+
+		if [[ "${network[gateway]}" != "$(ucr get gateway)" ]]; then
+			ucrchanges+=("gateway=${network[gateway]}")
+		fi
+
+		ucrchanges+=(
+			"interfaces/${network[interface]}/type=static"
+			"interfaces/${network[interface]}/default/acceptRA=true"
+			"interfaces/${network[interface]}/address=${network[address]}"
+			"interfaces/${network[interface]}/network=${network[network]}"
+			"interfaces/${network[interface]}/netmask=${network[netmask]}"
+			"interfaces/${network[interface]}/broadcast=${network[broadcast]}"
+		)
+	}
+	#
+done
+#
+## Set network config from container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	network \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

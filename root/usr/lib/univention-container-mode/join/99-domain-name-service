@@ -1,0 +1,247 @@
+#!/bin/bash
+#
+# Univention Container Mode - domain-name-service
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+#
+function UniventionDirecroryManagerUpdate() { # UniventionDirecroryManagerUpdate: IN(host, domain, master, base, address, cidr, subnet, pointer)
+
+	local host=${1}
+	local domain=${2}
+	local master=${3}
+	local base=${4}
+	local address=${5}
+	local cidr=${6}
+	local subnet=${7}
+	local pointer=${8}
+
+	local ttl=900
+
+	local bind=$(
+		echo |
+			awk \
+				-v user=${dcuser:-} \
+				-v pass=${dcpass:-} \
+				-v base=${base} \
+				'{ \
+				if( user != "" && pass != "" ) { \
+					printf "--binddn uid=%s,cn=users,%s --bindpwd %s", user, base, pass \
+				} \
+			}'
+	)
+
+	# create reverse zone
+	univention-directory-manager \
+		dns/reverse_zone create ${bind} \
+		--position="cn=dns,${base}" \
+		--set subnet="${subnet}" \
+		--set zonettl="${ttl}" \
+		--set nameserver="${master}." 2>&1 || /bin/true
+
+	# get superordinate from created reverse zone
+	local superordinate=$(
+		univention-directory-manager \
+			dns/reverse_zone list ${bind} \
+			--filter "(subnet=${subnet})" | awk '/^(DN|dn)\:/{ print $2 }'
+	)
+
+	# create ptr record
+	univention-directory-manager \
+		dns/ptr_record create ${bind} \
+		--superordinate="${superordinate}" \
+		--set address="${pointer}" \
+		--set ip="${address}" \
+		--set ptr_record="${host}.${domain}." 2>&1 || /bin/true
+	# append ptr record
+	univention-directory-manager \
+		dns/ptr_record modify ${bind} \
+		--dn "relativeDomainName=${pointer},${superordinate}" \
+		--append ptr_record="${host}.${domain}." 2>&1 || /bin/true
+
+	# create host record
+	univention-directory-manager \
+		dns/host_record create ${bind} \
+		--superordinate="zoneName=${domain},cn=dns,${base}" \
+		--set a="${address}" \
+		--set zonettl="${ttl}" \
+		--set name="${host}" 2>&1 || /bin/true
+	# append host record
+	univention-directory-manager \
+		dns/host_record modify ${bind} \
+		--dn "relativeDomainName=${host},zoneName=${domain},cn=dns,${base}" \
+		--append a="${address}" 2>&1 || /bin/true
+
+	# append ip address to computer
+	univention-directory-manager \
+		computers/$(ucr get server/role) modify ${bind} \
+		--dn "cn=${host},cn=$(
+			ucr get server/role | awk '/^domaincontroller/{ printf "dc" } !/^domaincontroller/{ printf $1 }'
+		),cn=computers,${base}" \
+		--append ip="${address}" 2>&1 || /bin/true
+
+}
+
+## ucr shell
+eval "$(ucr shell hostname domainname server/role ldap/master ldap/base)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+declare -A network
+network[ipv4]=4
+network[ipv6]=6
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## Update domain-name-service for container mode environment
+#
+NS=$(
+	echo ${server_role} |
+		awk \
+			-v master=${ldap_master} '\
+				 /domaincontroller_master/{ printf "localhost" } \
+				!/domaincontroller_master/{ printf master } \
+			'
+)
+#
+sso=ucs-sso
+#
+for version in ${network[@]}; do
+	# get default interface from ip -(4|6) route list
+	#
+	network[routelist]=$(ip -${version} route list | awk ' /^default/{ printf $0 }') # default via <address> dev <interface>
+	network[interface]=$(echo ${network[routelist]} | awk '/^default/{ for (I=1;I<=NF;I++) if ( $I=="dev" ) { print $(I+1) } }')
+	[[ -z ${network[interface]:-} ]] || {
+		network[addresses]=$(ip -${version} address show scope global dev ${network[interface]} | egrep "^*inet") # inet* <address>/<cidr> [brd <broadcast>] scope global <interface>
+
+		network[address]=$(echo ${network[addresses]} | awk '/inet/{ split($2,IP,"/"); printf IP[1] }') # get only first match in awk by $2
+		network[cidr]=$(echo ${network[addresses]} | awk '   /inet/{ split($2,IP,"/"); printf IP[2] }') # get only first match in awk by $2
+
+		network[reverse]=$(univention-ipcalc6 --ip=${network[address]} --netmask=${network[cidr]} --output=reverse --calcdns || /bin/true)
+		network[pointer]=$(univention-ipcalc6 --ip=${network[address]} --netmask=${network[cidr]} --output=pointer --calcdns || /bin/true)
+
+		[[ ${version} == 4 ]] && IN=A
+		[[ ${version} == 6 ]] && IN=AAAA
+
+		dig @${NS} ${hostname}.${domainname} ${IN} 2>&1 | egrep --quiet "^${hostname}.${domainname}.*IN.*${IN}.*${network[address]}$" ||
+			umc-command --username ${hostname}\$ --password $(</etc/machine.secret) \
+				ip/change \
+				--option netmask=${network[cidr]} \
+				--option ip=${network[address]} \
+				--option role=${server_role} || /bin/true
+
+		### Try to force fallback over univention-directory-manager with binddn and bindpwd #############################################
+		#
+		# UniventionDirecroryManagerUpdate IN(host, domain, master, base, address, cidr, subnet, pointer)
+		#
+		dig @${NS} ${hostname}.${domainname} ${IN} 2>&1 |
+			egrep --quiet "^${hostname}.${domainname}.*IN.*${IN}.*${network[address]}$" || {
+			UniventionDirecroryManagerUpdate \
+				${hostname} ${domainname} \
+				${ldap_master} ${ldap_base} \
+				${network[address]} ${network[cidr]} \
+				${network[reverse]} ${network[pointer]}
+		}
+		#
+		dig @${NS} -x ${network[address]} 2>&1 |
+			egrep --quiet "^$(
+				host ${network[address]} ${NS} | grep pointer | head -1 | awk '{ printf $1 }'
+			).*IN.*PTR.*${hostname}.${domainname}.$" || {
+			UniventionDirecroryManagerUpdate \
+				${hostname} ${domainname} \
+				${ldap_master} ${ldap_base} \
+				${network[address]} ${network[cidr]} \
+				${network[reverse]} ${network[pointer]}
+		}
+		#
+		[[ "${server_role}" == "domaincontroller_master" ]] && {
+			dig @${NS} ${sso}.${domainname} ${IN} 2>&1 |
+				egrep --quiet "^${sso}.${domainname}.*IN.*${IN}.*${network[address]}$" || {
+				UniventionDirecroryManagerUpdate \
+					${sso} ${domainname} \
+					${ldap_master} ${ldap_base} \
+					${network[address]} ${network[cidr]} \
+					${network[reverse]} ${network[pointer]}
+			}
+			#
+			dig @${NS} -x ${network[address]} 2>&1 |
+				egrep --quiet "^$(
+					host ${network[address]} ${NS} | grep pointer | head -1 | awk '{ printf $1 }'
+				).*IN.*PTR.*${sso}.${domainname}.$" || {
+				UniventionDirecroryManagerUpdate \
+					${sso} ${domainname} \
+					${ldap_master} ${ldap_base} \
+					${network[address]} ${network[cidr]} \
+					${network[reverse]} ${network[pointer]}
+			}
+		}
+		#
+		### Try to force fallback over univention-directory-manager with binddn and bindpwd #############################################
+
+	}
+	#
+done
+#
+## Update domain-name-service for container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	network \
+	server_role \
+	ldap_master ldap_base \
+	hostname domainname \
+	dcuser dcpass \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

@@ -1,0 +1,297 @@
+{
+	"linux": {
+		"debootstrap": {
+			"man": [
+				"debootstrap(8)",
+				"man:debootstrap(8)",
+				"https://linux.die.net/man/8/debootstrap"
+			],
+			"dir": "/var/cache/debootstrap",
+			"distributions": {
+				"univention-corporate-server": {
+					"name": "univention-corporate-server",
+					"url": {
+						"distribution": "https://www.univention.com/products/ucs/",
+						"architecture": null,
+						"repository": null,
+						"release": "https://www.univention.com/products/ucs/release-information/",
+						"package": {
+							"stable": "https://packages.debian.org/stable"
+						}
+					},
+					"mirror": "https://updates.software-univention.de",
+					"codenames": {
+						"ucs447": {
+							"name": "ucs447",
+							"arch": [
+								"amd64",
+								"i386"
+							],
+							"tag": "latest",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
+									"date": {
+										"created": "2014-06-30",
+										"expire": "2021-06-28"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"univention-basesystem",
+									"univention-base-files"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils"
+								]
+							}
+						},
+						"ucs446": {
+							"name": "ucs446",
+							"arch": [
+								"amd64",
+								"i386"
+							],
+							"tag": "ucs446",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
+									"date": {
+										"created": "2014-06-30",
+										"expire": "2021-06-28"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"univention-basesystem",
+									"univention-base-files"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils"
+								]
+							}
+						},
+						"ucs445": {
+							"name": "ucs445",
+							"arch": [
+								"amd64",
+								"i386"
+							],
+							"tag": "ucs445",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
+									"date": {
+										"created": "2014-06-30",
+										"expire": "2021-06-28"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"univention-basesystem",
+									"univention-base-files"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils"
+								]
+							}
+						},
+						"ucs444": {
+							"name": "ucs444",
+							"arch": [
+								"amd64",
+								"i386"
+							],
+							"tag": "ucs444",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
+									"date": {
+										"created": "2014-06-30",
+										"expire": "2021-06-28"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"univention-basesystem",
+									"univention-base-files"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils"
+								]
+							}
+						},
+						"ucs443": {
+							"name": "ucs443",
+							"arch": [
+								"amd64",
+								"i386"
+							],
+							"tag": "ucs443",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
+									"date": {
+										"created": "2014-06-30",
+										"expire": "2021-06-28"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"univention-basesystem",
+									"univention-base-files"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils"
+								]
+							}
+						},
+						"ucs442": {
+							"name": "ucs442",
+							"arch": [
+								"amd64",
+								"i386"
+							],
+							"tag": "ucs442",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
+									"date": {
+										"created": "2014-06-30",
+										"expire": "2021-06-28"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"univention-basesystem",
+									"univention-base-files"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils"
+								]
+							}
+						},
+						"ucs441": {
+							"name": "ucs441",
+							"arch": [
+								"amd64",
+								"i386"
+							],
+							"tag": "ucs441",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
+									"date": {
+										"created": "2014-06-30",
+										"expire": "2021-06-28"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"univention-basesystem",
+									"univention-base-files"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils"
+								]
+							}
+						},
+						"ucs440": {
+							"name": "ucs440",
+							"arch": [
+								"amd64",
+								"i386"
+							],
+							"tag": "ucs440",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
+									"date": {
+										"created": "2014-06-30",
+										"expire": "2021-06-28"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"univention-basesystem",
+									"univention-base-files"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils"
+								]
+							}
+						}
+					},
+					"options": [
+						"verbose",
+						"force-check-gpg"
+					]
+				}
+			}
+		},
+		"febootstrap": {
+			"man": [
+				"febootstrap(8)",
+				"man:febootstrap(8)",
+				"https://linux.die.net/man/8/febootstrap"
+			],
+			"dir": null
+		}
+	}
+}

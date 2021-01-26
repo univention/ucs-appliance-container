@@ -1,0 +1,174 @@
+#!/bin/bash
+#
+# Univention Container Mode - certificates
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+[[ $(id --user) != 0 ]] && {
+	echo "USE ($0) ONLY AS ROOT USER! ... exit(1)"
+	exit 1
+}
+
+while (("${#@}")); do
+	case ${1} in
+	--min | --minimum) {
+		MINMAX=MIN
+	} ;;
+	--max | --maximum) {
+		MINMAX=MAX
+	} ;;
+	esac
+	shift
+done
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+function getBase64() { # getBase64: IN(multiline <string(base64)>) => OUT(single line <string(base64)>)
+	awk '{ if( NF==1 ){ printf $0 } }' ${@}
+}
+
+## ucr shell
+eval "$(ucr shell hostname domainname ucs/server/sso/fqdn)"
+
+## declare
+SSL=/etc/univention/ssl
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## generate certificate(s) container environment option
+# --env certificates='<string JSON({ ... })>'
+#
+json=jq
+
+which ${json} >/dev/null 2>&1 || {
+	apt-get --verbose-versions --assume-yes --no-install-recommends install ${json}
+	apt-mark auto ${json}
+}
+
+which ${json} >/dev/null 2>&1 || debug "### SKIPING SCRIPT($(pwd)/$0) WHICH(${json}) NOT FOUND ###"
+which ${json} >/dev/null 2>&1 && {
+	JSON="${json} --raw-output"
+
+	[[ ${MINMAX:-MIN} =~ MIN ]] && cat <<EOF >${SSL}/certificates.json
+	{
+		"root":{
+			"certificate":{
+				"crt":"$(openssl x509 -outform PEM -in ${SSL}/ucsCA/CAcert.pem 2>/dev/null | getBase64)"
+			},
+			"rsa":{
+				"key":{
+					"private":"$(openssl rsa -outform PEM -passin pass:$(<${SSL}/password) -in ${SSL}/ucsCA/private/CAkey.pem 2>/dev/null | getBase64)",
+					"public":"$(openssl rsa -pubout -outform PEM -passin pass:$(<${SSL}/password) -in ${SSL}/ucsCA/private/CAkey.pem 2>/dev/null | getBase64)"
+				},
+				"encryption":{
+					"signkey":"$(getBase64 ${SSL}/ucsCA/private/CAkey.pem)",
+					"encrypted":$(awk '/^Proc-Type/{ split($2,TYPE,","); if ( TYPE[2]=="ENCRYPTED" ) { printf "true" } }' ${SSL}/ucsCA/private/CAkey.pem),
+					"version":$(awk '/^Proc-Type/{ split($2,TYPE,","); printf TYPE[1] }' ${SSL}/ucsCA/private/CAkey.pem),
+					"algorithm":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[1] }' ${SSL}/ucsCA/private/CAkey.pem)",
+					"password":"$(tr --delete '\n' <${SSL}/password)",
+					"salt":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[2] }' ${SSL}/ucsCA/private/CAkey.pem)"
+				}
+			}
+		}
+	}
+EOF
+
+	[[ ${MINMAX:-} =~ MAX ]] && cat <<EOF >${SSL}/certificates.json
+	{
+		"root":{
+			"certificate":{
+				"req":"$(openssl req -outform PEM -in ${SSL}/ucsCA/CAreq.pem 2>/dev/null | getBase64)",
+				"crt":"$(openssl x509 -outform PEM -in ${SSL}/ucsCA/CAcert.pem 2>/dev/null | getBase64)",
+				"crl":"$(openssl crl -outform PEM -in ${SSL}/ucsCA/crl/crl.pem 2>/dev/null | getBase64)"
+			},
+			"rsa":{
+				"key":{
+					"private":"$(openssl rsa -outform PEM -passin pass:$(<${SSL}/password) -in ${SSL}/ucsCA/private/CAkey.pem 2>/dev/null | getBase64)",
+					"public":"$(openssl rsa -pubout -outform PEM -passin pass:$(<${SSL}/password) -in ${SSL}/ucsCA/private/CAkey.pem 2>/dev/null | getBase64)"
+				},
+				"encryption":{
+					"signkey":"$(getBase64 ${SSL}/ucsCA/private/CAkey.pem)",
+					"encrypted":$(awk '/^Proc-Type/{ split($2,TYPE,","); if ( TYPE[2]=="ENCRYPTED" ) { printf "true" } }' ${SSL}/ucsCA/private/CAkey.pem),
+					"version":$(awk '/^Proc-Type/{ split($2,TYPE,","); printf TYPE[1] }' ${SSL}/ucsCA/private/CAkey.pem),
+					"algorithm":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[1] }' ${SSL}/ucsCA/private/CAkey.pem)",
+					"password":"$(tr --delete '\n' <${SSL}/password)",
+					"salt":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[2] }' ${SSL}/ucsCA/private/CAkey.pem)"
+				}
+			}
+		},
+		"host":{
+			"fqdn":"${hostname}.${domainname}",
+			"certificate":{
+				"req":"$(openssl req -outform PEM -in ${SSL}/${hostname}.${domainname}/req.pem 2>/dev/null | getBase64)",
+				"crt":"$(openssl x509 -outform PEM -in ${SSL}/${hostname}.${domainname}/cert.pem 2>/dev/null | getBase64)"
+			},
+			"rsa":{
+				"key":{
+					"private":"$(openssl rsa -outform PEM -in ${SSL}/${hostname}.${domainname}/private.key 2>/dev/null | getBase64)",
+					"public":"$(openssl rsa -pubout -outform PEM -in ${SSL}/${hostname}.${domainname}/private.key 2>/dev/null | getBase64)"
+				}
+			}
+		},
+		"sso":{
+			"fqdn":"${ucs_server_sso_fqdn}",
+			"certificate":{
+				"req":"$(openssl req -outform PEM -in ${SSL}/${ucs_server_sso_fqdn}/req.pem 2>/dev/null | getBase64)",
+				"crt":"$(openssl x509 -outform PEM -in ${SSL}/${ucs_server_sso_fqdn}/cert.pem 2>/dev/null | getBase64)"
+			},
+			"rsa":{
+				"key":{
+					"private":"$(openssl rsa -outform PEM -in ${SSL}/${ucs_server_sso_fqdn}/private.key 2>/dev/null | getBase64)",
+					"public":"$(openssl rsa -pubout -outform PEM -in ${SSL}/${ucs_server_sso_fqdn}/private.key 2>/dev/null | getBase64)"
+				}
+			}
+		}
+	}
+EOF
+
+	# show json string
+	${JSON} . ${SSL}/certificates.json
+
+	# show container option environment string
+	[[ ${MINMAX:-OUTPUT} =~ OUTPUT ]] && echo -e "USE:\n\t/bin/bash $0 [--minimum|--maximum]" || {
+		echo
+		echo --env certificates=\'$(${JSON} --compact-output . ${SSL}/certificates.json)\'
+		echo
+	}
+
+}
+#
+## generate certificate(s) container environment option
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## cleanup
+unset \
+	hostname domainname \
+	ucs_server_sso_fqdn
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

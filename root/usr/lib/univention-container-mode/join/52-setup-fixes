@@ -1,0 +1,140 @@
+#!/bin/bash
+#
+# Univention Container Mode - setup-fixes
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+ucrcounter[nameserver]=1
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+ucrcommit[rsyslog.conf]=/etc/rsyslog.conf
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## Setup fixes for container mode environment
+# role : <string> default(master)
+#
+[[ -z ${role:-} ]] && role=master
+
+role=$(
+	echo -n ${role:-} | awk '\
+	 /^[a-zA-Z]/{ printf tolower($1) } \
+	!/^[a-zA-Z]/{ printf "master" }'
+)
+
+# check for system role package
+#
+UniventionSystemInstallSystemRolePrefix="univention-server-"
+UniventionSystemInstallSystemRole=$(
+	apt-cache search ${UniventionSystemInstallSystemRolePrefix} | egrep "^${UniventionSystemInstallSystemRolePrefix}${role}\s" |
+		awk '\
+			 /^'${UniventionSystemInstallSystemRolePrefix}${role}'/{ printf $1 } \
+			!/^'${UniventionSystemInstallSystemRolePrefix}${role}'/{ printf "" }'
+)
+#
+[[ -z ${UniventionSystemInstallSystemRole} ]] && echo "MISSING PACKAGE(${UniventionSystemInstallSystemRolePrefix}${role}) ... exit(1)" && exit 1
+[[ -z ${UniventionSystemInstallSystemRole} ]] || {
+	# fix rsyslog ( /dev/xconsole ... No such file or directory )
+	# https://www.freedesktop.org/software/systemd/man/systemd-getty-generator.html
+	#
+	find \
+		/etc/univention/templates/files${ucrcommit[rsyslog.conf]} \
+		-type f \
+		-exec sed -i 's/\/dev\/xconsole/\/dev\/null/g' {} \;
+	#
+	# ToDo: see (Execution Environment) https://systemd.io/CONTAINER_INTERFACE
+	# 5. If systemd detects it is run in a container it will spawn a single shell on /dev/console ...
+	# -exec sed -i 's/\/dev\/xconsole/\/dev\/console/g' {} \;
+	# ucrchanges+=("update/warning/tty=/dev/console")
+	#
+	# fix start vs restart ( systemd still think slapd is running )
+	# systemctl status slapd.service
+	#  ( <DATE> <HOST> slapd[<PID>]: slapd stopped. )
+	# egrep -ir "service\s[a-z].*\s(start|stop|restart)" /usr/lib/univention-*
+	find \
+		/usr/lib/univention-install \
+		-type f \
+		-exec sed -i 's/service slapd start/service slapd restart/' {} \; || /bin/true
+	#
+	# fix service <name> (start|stop|restart|...)
+	# egrep -ir "service(\s|\_)(start|stop|restart)\s(\".*\"|[a-z].*)" /usr/lib/univention-*
+	find \
+		/usr/lib/univention-system-setup \
+		-type f \
+		-exec sed -i --regexp-extended 's/(service\s)(start|stop|restart)\s([a-z].*)$/\1\3 \2/g' {} \; || /bin/true
+	find \
+		/usr/lib/univention-system-setup/scripts/setup_utils.sh \
+		-type f \
+		-exec sed -i --regexp-extended 's/^service\_(start|stop).*\(\).*\{.*\}$/service\_\1 \(\) \{ for service in \$( echo \$\{@\} \)\; do service \$\{service\} \1; done \}/g' {} \; || /bin/true
+	#
+	# fix readability join scripts
+	# for script in /usr/sbin/univention-run-join-scripts /usr/share/univention-join/univention-join; do
+	# 	[[ -f ${script} ]] && sed -i 's/\[60G/\[100G/g' ${script}
+	# done
+}
+#
+## Setup fixes for container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	role \
+	rootpw passwd \
+	dcpass dcuser dcname \
+	hostname domainname \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

@@ -1,0 +1,125 @@
+#!/bin/bash
+#
+# Univention Container Mode - json-install
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+# eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## apt-get install or univention-add-app from container mode environment
+# install: '{"(add-app|install|remove)":["(app|package)"[,"(app|package)",...]]}'
+#
+[[ -z ${install:-} ]] || {
+	json=jq
+
+	which ${json} >/dev/null 2>&1 || {
+		apt-get --verbose-versions --assume-yes --no-install-recommends install ${json}
+		apt-mark auto ${json}
+	}
+
+	which ${json} >/dev/null 2>&1 && {
+		JSON="${json} --raw-output"
+		echo ${install} | ${JSON} 'keys | .[]' >/dev/null 2>&1 && {
+			for key in $(echo ${install} | ${JSON} 'keys | .[]'); do
+				case ${key} in
+				add-app) { # install all requested univention app(s)
+					for app in $(echo ${install} | ${JSON} '."add-app"[]'); do
+						univention-add-app --list ${app} >/dev/null 2>&1 &&
+							univention-add-app --all ${app} || /bin/true
+					done
+				} ;;
+				remove) { # set valied package(s) to auto install
+					for package in $(echo ${install} | ${JSON} '."remove"[]'); do
+						apt-cache search ${package} | egrep --silent "^${package}" &&
+							apt-mark auto ${package} >/dev/null 2>&1 || /bin/true
+					done
+				} ;;
+				install) { # install all requested package(s) and converted app(s)
+					for package in $(echo ${install} | ${JSON} '."install"[]'); do
+						[[ ${package} =~ ^univention ]] && {
+							# univention-<APP>
+							app=$(echo ${package} | sed 's/^univention\-//g')
+							univention-add-app --list ${app} >/dev/null 2>&1 &&
+								univention-add-app --all ${app} || /bin/true
+							# univention-app-name vs appname
+							echo ${app} | egrep --silent -- "-" && {
+								app=$(echo ${app} | sed 's/\-//g')
+								univention-add-app --list ${app} >/dev/null 2>&1 &&
+									univention-add-app --all ${app} || /bin/true
+							}
+						}
+						apt-cache search ${package} | egrep --silent "^${package}" &&
+							UniventionInstall ${package} || /bin/true
+					done
+				} ;;
+				esac
+			done
+		}
+	}
+}
+#
+## apt-get install or univention-add-app from container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	install \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

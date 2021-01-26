@@ -1,0 +1,100 @@
+#!/bin/bash
+#
+# Univention Container Mode - ucr-environment-import
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+# eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## ucr overwrite from container mode environment
+# get lowercase[^a-z] variable(s) from env
+# split by = and replace _ to /
+# <FILTER(UniventionConfigRegistryExcludeKeyFilter)>
+#
+UniventionConfigRegistryExcludeKeyFilter="^!.*$"
+UniventionConfigRegistryExcludeKeyFilter="^(rootpw|sshkey|dcname|dcuser|dcpass|language|encoding|timezone|role|license|nameserver|forwarder|domainname|hostname|registry|install|container|certificates|credentials)$"
+#
+env | awk '\
+	/^[a-z]/{ \
+		split($1,UCR,"="); gsub(/\_/, "/", UCR[1]); \
+		if( UCR[2] == "" && UCR[1] !~ /'${UniventionConfigRegistryExcludeKeyFilter}'/ ) { \
+			printf "\"%s\"\n", UCR[1]; \
+		} \
+	}' | xargs --no-run-if-empty univention-config-registry unset 2>&1 || /bin/true
+#
+env | awk '\
+	/^[a-z]/{ \
+		split($1,UCR,"="); gsub(/\_/, "/", UCR[1]); \
+		if( UCR[2] != "" && UCR[1] !~ /'${UniventionConfigRegistryExcludeKeyFilter}'/ ) { \
+			printf "\"%s=%s", UCR[1], UCR[2]; \
+			for(i=2;i<=NF;i++){ \
+				printf " %s", $i \
+			}; \
+			printf "\"\n" \
+		} \
+	}' | xargs --no-run-if-empty univention-config-registry set 2>&1 || /bin/true
+#
+## ucr overwrite from container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

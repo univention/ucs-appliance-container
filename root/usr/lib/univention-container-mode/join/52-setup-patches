@@ -1,0 +1,114 @@
+#!/bin/bash
+#
+# Univention Container Mode - setup-patches
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+ucrcounter[nameserver]=1
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+ucrcommit[rsyslog.conf]=/etc/rsyslog.conf
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## Setup patches for container mode environment
+#
+# disable frontend shutdown server entry
+#  ToDo: We are in container mode environment!
+#   => Fix label to Restart container or disable the whole modul
+#    => https://www.freedesktop.org/software/systemd/man/systemd-detect-virt.html
+#     => systemd-detect-virt --container
+#
+patch /usr/share/univention-management-console-frontend/modules/reboot.js <<EOF
+@@ -44,15 +44,15 @@
+ 			label: _('Server'),
+ 			id: 'umcMenuServer'
+ 		});
+-		menu.addEntry({
+-			parentMenuId: 'umcMenuServer',
+-			id: 'umcMenuShutdown',
+-			label: _('Shutdown server'),
+-			onClick: function() {
+-				topic.publish('/umc/actions', 'menu', 'server', 'shutdown');
+-				libServer.askShutdown();
+-			}
+-		});
++//		menu.addEntry({
++//			parentMenuId: 'umcMenuServer',
++//			id: 'umcMenuShutdown',
++//			label: _('Shutdown server'),
++//			onClick: function() {
++//				topic.publish('/umc/actions', 'menu', 'server', 'shutdown');
++//				libServer.askShutdown();
++//			}
++//		});
+ 		menu.addEntry({
+ 			parentMenuId: 'umcMenuServer',
+ 			id: 'umcMenuReboot',
+EOF
+#
+## Setup patches for container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	server \
+	rootpw passwd \
+	dcpass dcuser dcname \
+	hostname domainname \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

@@ -1,0 +1,409 @@
+#!/bin/bash
+
+# ToDo
+# - Fix --platform for multi-platform server on import
+# - switch to GitHub API
+#  => curl --silent --header "Accept: application/vnd.github.v3+json" https://api.github.com/repos/univention/univention-corporate-server/tags | jq -r .[].name
+#  => curl --silent --header "Accept: application/vnd.github.v3+json" https://api.github.com/repos/univention/univention-corporate-server/tags | jq -r .[0].name | tr --complement --delete '[:digit:]'
+
+## CHECK FOR ROOT USER
+[[ ${LOGNAME} == root ]] || {
+	echo -e "NOTE: root user is needed!\nUSE: $0 with sudo\n\tsudo /bin/bash $0 $@"
+	exit 1
+}
+
+## FUNCTION(S)
+function getPath() {
+	echo "$(which ${1} 2>/dev/null | awk '/^\/.*'${1}'$/ {printf "%s", $0}' | head -n 1)"
+}
+function missing() {
+	echo -e "ERROR: missing ${1} ... fix this by install!"
+	which apt >/dev/null 2>&1 &&
+		echo -e "INSTALL:\n\tapt install ${1}"
+	which yum >/dev/null 2>&1 &&
+		echo -e "INSTALL:\n\tyum install ${1}"
+	exit 1
+}
+function keyrings() {
+	find /usr/share/${1} -type f -exec cat {} \; |
+		awk '/^keyring.*\.gpg$/{ print $2 }' | sort | uniq |
+		awk '!/tanglu-archive-keyring.gpg/{ print "test -f " $1 " || echo \"INFO: KEYRING(" $0 ") NOT FOUD ON SYSTEM ...\" "}' |
+		bash -
+}
+
+## SET DOCKER OR PODMAN PATH
+docker=$(which docker podman 2>/dev/null | awk '/^\/.*(docker|podman)$/{printf "%s", $0}' | head -n 1 || /bin/true)
+[[ -z ${docker} ]] && {
+	echo -e "ERROR: missing docker or podman ... fix this by install!"
+	echo -e "INFO:\n\thttps://docs.docker.com/engine/install/\n\thttps://podman.io/getting-started/installation.html"
+	exit 1
+}
+
+## SET ARCH ( OR ARCH-TEST PATH )
+arch=$(getPath arch-test)
+[[ -z ${arch} ]] &&
+	arch=$(uname --machine | awk '/^i(3|4|5|6)86$/{ print "i386" } /^x86_64$/{ print "amd64" }')
+
+## SET CURL PATH
+curl=$(getPath curl)
+[[ -z ${curl} ]] &&
+	missing curl
+
+## SET CURL DEFAULT OPTION(S)
+[[ -z ${curl} ]] ||
+	curl="${curl} --fail --silent"
+
+## SET GPG PATH
+gpg=$(getPath gpg)
+[[ -z ${gpg} ]] &&
+	missing gpg
+
+## SET GPG DEFAULT OPTION(S)
+[[ -z ${gpg} ]] ||
+	gpg="${gpg} --batch --no-default-keyring"
+
+## SET JQ PATH
+jq=$(getPath jq)
+[[ -z ${jq} ]] &&
+	missing jq
+
+## SET JQ DEFAULT OPTION(S)
+[[ -z ${jq} ]] ||
+	jq="${jq} --raw-output"
+
+## GET PLATFORM FROM KERNEL
+PLATFORM=$(uname --kernel-name | awk '{print tolower($0)}')
+
+## CHECK JSON CONFIG FILE
+[[ -f $0.json ]] || {
+	echo "JSON CONFIG FILE($0.json) MISSING ..."
+	exit 1
+}
+
+## SET JSON CONFIG FILE
+JSON=$0.json
+
+## SET BASH DEFAULT VALUE(S)
+ARTIFACTS=FALSE
+DRY_RUN=FALSE
+CACHING=FALSE
+
+## CHECK OPTION(S)
+[[ ${#@} == 0 ]] && {
+	echo "USE: /bin/bash $0 --help"
+	exit 1
+}
+
+## SET OPTION(S)
+while (("${#@}")); do
+	case ${1} in
+	--get-artifacts) {
+		ARTIFACTS=TRUE
+	} ;;
+	--all-distributions) {
+		shift
+	} ;;
+	--distribution) {
+		shift && {
+			for strap in debootstrap febootstrap; do
+				[[ $(${jq} .${PLATFORM}.${strap}.dir ${JSON}) == null ]] || {
+					bootstrap=$(getPath ${strap}) # SET (D|F)EBOOTSTRAP PATH
+					[[ -z ${bootstrap} ]] && missing ${strap} && keyrings ${strap} || {
+						for distribution in $(${jq} .${PLATFORM}.${strap}.distributions[].name ${JSON}); do
+							[[ "${1}" == "${distribution}" ]] && DistName="${1}"
+						done
+					}
+				}
+			done
+			[[ -z ${DistName} ]] && {
+				echo -e \
+					"ERROR: --distribution ${1} not found\
+					\n\tTRY /bin/bash ${0} --list-distribution\
+					\n\t OR /bin/bash ${0} --all-distribution"
+				exit 1
+			}
+		}
+	} ;;
+	--list-distributions) {
+		for strap in debootstrap febootstrap; do
+			[[ $(${jq} .${PLATFORM}.${strap}.dir ${JSON}) == null ]] || {
+				bootstrap=$(getPath ${strap}) # SET (D|F)EBOOTSTRAP PATH
+				[[ -z ${bootstrap} ]] && missing ${strap} && keyrings ${strap} || {
+					for distribution in $(${jq} .${PLATFORM}.${strap}.distributions[].name ${JSON}); do
+						echo -e \
+							"distribution: $(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".url.distribution ${JSON})\
+								\n\t/bin/bash $0 --distribution ${distribution}"
+					done
+				}
+			}
+		done
+		exit 0
+	} ;;
+	--all-codenames) {
+		shift
+	} ;;
+	--codename) {
+		shift && {
+			for strap in debootstrap febootstrap; do
+				[[ $(${jq} .${PLATFORM}.${strap}.dir ${JSON}) == null ]] || {
+					bootstrap=$(getPath ${strap}) # SET (D|F)EBOOTSTRAP PATH
+					[[ -z ${bootstrap} ]] && missing ${strap} && keyrings ${strap} || {
+						for distribution in $(${jq} .${PLATFORM}.${strap}.distributions[].name ${JSON}); do
+							for codename in $(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames[].name ${JSON}); do
+								[[ "${1}" == "${codename}" ]] && CodeName="${1}"
+							done
+						done
+					}
+				}
+			done
+			[[ -z ${CodeName} ]] && {
+				echo -e \
+					"ERROR: --codename ${1} not found\
+					\n\tTRY /bin/bash ${0} --list-codenames\
+					\n\t OR /bin/bash ${0} --all-codenames"
+				exit 1
+			}
+		}
+	} ;;
+	--list-codenames) {
+		for strap in debootstrap febootstrap; do
+			[[ $(${jq} .${PLATFORM}.${strap}.dir ${JSON}) == null ]] || {
+				bootstrap=$(getPath ${strap}) # SET (D|F)EBOOTSTRAP PATH
+				[[ -z ${bootstrap} ]] && missing ${strap} && keyrings ${strap} || {
+					for distribution in $(${jq} .${PLATFORM}.${strap}.distributions[].name ${JSON}); do
+						for codename in $(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames[].name ${JSON}); do
+							echo -e \
+								"\t/bin/bash $0 --distribution ${distribution} --codename ${codename}"
+						done
+					done
+				}
+			}
+		done
+		exit 0
+	} ;;
+	--arch) {
+		shift && {
+			[[ -f ${arch} ]] || {
+				echo \
+					${arch} | egrep --quiet "^${1}$" && arch=${1} || /bin/true
+			}
+			[[ -f ${arch} ]] && {
+				test -x \
+					${arch} &&
+					${arch} | egrep --quiet "^${1}$" && arch=${1} || /bin/true
+			}
+		}
+	} ;;
+	--use-cache) {
+		CACHING=TRUE
+	} ;;
+	--dry-run) {
+		DRY_RUN=TRUE
+	} ;;
+	--debug) {
+		DEBUG=TRUE
+	} ;;
+	--help | *) {
+		echo "USE: /bin/bash $0 --help"
+		echo ""
+		echo "ARG: /bin/bash $0 --all-distributions [--arch <arch> [--use-cache [ --get-artifacts [ --dry-run [--debug]]]]]]"
+		echo ""
+		echo "ARG: /bin/bash $0 --distribution <distribution> [ --codename <codename> [--arch <arch> [--use-cache [ --get-artifacts [ --dry-run [--debug]]]]]]]"
+		echo ""
+		echo "ARG: /bin/bash $0 --list-distributions"
+		echo "ARG: /bin/bash $0 --list-codenames"
+		echo ""
+		echo "ARG: /bin/bash $0 --get-artifacts"
+		echo ""
+		echo "ARG: /bin/bash $0 --use-cache"
+		echo ""
+		echo "ARG: /bin/bash $0 --dry-run"
+		echo "ARG: /bin/bash $0 --debug"
+		exit 0
+	} ;;
+	esac
+	shift
+done
+
+[[ ${DEBUG:-} =~ ^1|yes|true|YES|TRUE$ ]] && {
+	set -o xtrace
+	set -o errexit
+	set -o errtrace
+	set -o nounset
+	set -o pipefail
+}
+
+for strap in debootstrap febootstrap; do
+	[[ $(${jq} .${PLATFORM}.${strap}.dir ${JSON}) == null ]] || {
+		bootstrap=$(getPath ${strap}) # SET (D|F)EBOOTSTRAP PATH
+		[[ -z ${bootstrap} ]] && missing ${strap} && keyrings ${strap} || {
+			DIR=$(${jq} .${PLATFORM}.${strap}.dir ${JSON})/${PLATFORM}
+
+			for distribution in $(${jq} .${PLATFORM}.${strap}.distributions[].name ${JSON}); do
+				[[ ${#DistName} != 0 ]] && [[ "${DistName}" != "${distribution}" ]] && continue
+				for codename in $(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames[].name ${JSON}); do
+					[[ ${#CodeName} != 0 ]] && [[ "${CodeName}" != "${codename}" ]] && continue
+
+					OPTION=""
+					SUITE=${codename}
+					TARGET=""
+					MIRROR=$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".mirror ${JSON})
+					SCRIPT=""
+					KEYRING=""
+
+					for option in $(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".options[] ${JSON}); do
+						OPTION="${OPTION} --${option}"
+					done
+
+					INCLUDE=""
+					EXCLUDE=""
+
+					for package in \
+						$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".packages.include[] ${JSON}) \
+						$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".packages.default[] ${JSON}); do
+						INCLUDE="${INCLUDE},${package}"
+					done
+					for package in \
+						$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".packages.exclude[] ${JSON}); do
+						EXCLUDE="${EXCLUDE},${package}"
+					done
+
+					[[ -z ${INCLUDE} ]] || INCLUDE=$(echo ${INCLUDE} | sed 's/^,/ --include /g')
+					[[ -z ${EXCLUDE} ]] || EXCLUDE=$(echo ${EXCLUDE} | sed 's/^,/ --exclude /g')
+
+					OPTION="${OPTION}${INCLUDE}${EXCLUDE}"
+
+					VARIANT=$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".packages.variant ${JSON} | awk '!/null/{ print " --variant " $0 }')
+
+					OPTION="${OPTION}${VARIANT}"
+
+					case ${distribution} in
+					univention-corporate-server) {
+						[[ $(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".gpg.key.hash ${JSON}) == null ]] || {
+							HASH=$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".gpg.key.hash ${JSON})
+							FILE=$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".gpg.key.file ${JSON})
+							HTTP=$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".gpg.key.http ${JSON})
+
+							case ${codename} in
+							*) SCRIPT=/usr/share/debootstrap/scripts/stable ;;
+							esac
+
+							MAJOR=$(echo ${codename} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $1 }')
+							MINOR=$(echo ${codename} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $2 }')
+							PATCH=$(echo ${codename} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $3 }')
+
+							VERSION=${MAJOR}.${MINOR}-${PATCH}
+
+							KEYRING="${DIR}/${distribution}/${HASH}.gpg"
+							mkdir --parents $(dirname ${KEYRING}) && {
+								[[ -f ${FILE} ]] && KEYRING=${FILE}
+								[[ -f ${FILE} ]] || {
+									CURL="${curl} --location ${HTTP} --output ${KEYRING}"
+									GPG="${CURL} || ${gpg} --keyring ${KEYRING} --recv-key ${HASH} > /dev/null 2>&1"
+									[[ ${DRY_RUN-} =~ ^1|yes|true|YES|TRUE$ ]] && echo ${GPG}
+									[[ ${DRY_RUN-} =~ ^1|yes|true|YES|TRUE$ ]] || echo ${GPG} | bash -
+								}
+							}
+
+							OPTION="${OPTION} --keyring ${KEYRING}"
+							MIRROR="${MIRROR}/${MAJOR}.${MINOR}/maintained/${MAJOR}.${MINOR}-${PATCH}"
+						}
+					} ;;
+					*) {
+						OPTION="${OPTION}"
+					} ;;
+					esac
+
+					BootStrapOptions="${OPTION}"
+					for ARCH in $(
+						test -x ${arch} && ${arch} || echo ${arch}
+					); do
+						${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".arch[] ${JSON} | egrep --quiet ${ARCH} ||
+							echo "INFO: Skipping non supported architecture ${ARCH} ..."
+						${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".arch[] ${JSON} | egrep --quiet ${ARCH} && {
+							OPTION="${BootStrapOptions} --arch ${ARCH}"
+
+							CACHED=${DIR}/${distribution}/cached
+							TARGET=${DIR}/${distribution}/${ARCH}/${codename}
+
+							ARTIFACT=${DIR}/${distribution}.tar
+
+							[[ ${VERSION-} =~ ^$ ]] && VERSION=${codename}
+
+							[[ ${docker} =~ podman$ ]] &&
+								IMAGE=localhost/${distribution}-$(basename ${bootstrap}) || IMAGE=${distribution}-$(basename ${bootstrap})
+
+							TAG=$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".tag ${JSON})
+
+							[[ ${CACHING-} =~ ^1|yes|true|YES|TRUE$ ]] && {
+								${bootstrap} --help | egrep --quiet -- "--cache-dir" && {
+									mkdir --parents ${CACHED} && OPTION="${OPTION} --cache-dir ${CACHED}"
+								}
+							}
+
+							rm --recursive --force ${TARGET}
+							mkdir --parents ${TARGET} && {
+								BOOTSTRAP="${bootstrap} ${OPTION} ${SUITE} ${TARGET} ${MIRROR} ${SCRIPT}"
+								[[ ${DRY_RUN-} =~ ^1|yes|true|YES|TRUE$ ]] && echo ${BOOTSTRAP}
+								[[ ${DRY_RUN-} =~ ^1|yes|true|YES|TRUE$ ]] || echo ${BOOTSTRAP} | bash -
+								[[ ${DRY_RUN-} =~ ^1|yes|true|YES|TRUE$ ]] && {
+									echo ${docker} import --message "${BOOTSTRAP}" - ${IMAGE}:${VERSION}
+								}
+
+								[[ -d ${TARGET}/dev ]] && {
+									[[ -d ${TARGET}/var/lib/apt/lists ]] &&
+										rm --recursive --force \
+											${TARGET}/var/lib/apt/lists/*
+
+									[[ -d ${TARGET}/var/cache/apt ]] &&
+										rm --force \
+											${TARGET}/var/cache/apt/archives/*.deb \
+											${TARGET}/var/cache/apt/archives/partial/*.deb \
+											${TARGET}/var/cache/apt/*.bin
+
+									[[ -d ${TARGET}/var/log ]] &&
+										rm --force \
+											${TARGET}/var/log/*/* \
+											${TARGET}/var/log/* >/dev/null 2>&1 || /bin/true
+
+									find ${TARGET} \
+										-maxdepth 1 \
+										-type l \
+										-name "*.install" \
+										-exec rm --force {} \;
+
+									echo "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main" > \
+										${TARGET}/etc/apt/sources.list
+
+									${docker} import --help | egrep --quiet -- "--platform" &&
+										tar --create --directory=${TARGET} . |
+										${docker} import --message "${BOOTSTRAP}" --platform "${PLATFORM}/${ARCH}" - ${IMAGE}:${VERSION} ||
+										tar --create --directory=${TARGET} . |
+										${docker} import --message "${BOOTSTRAP}" - ${IMAGE}:${VERSION}
+
+									[[ ${TAG} =~ ^latest$ ]] && {
+										${docker} image tag ${IMAGE}:${VERSION} ${IMAGE}:${TAG}
+
+										[[ ${docker} =~ podman$ ]] && {
+											echo sudo tar --create --directory=${TARGET} . \| ${docker} import --message \"${BOOTSTRAP}\" - ${IMAGE}:${VERSION}
+											echo sudo tar --create --directory=${TARGET} . \| ${docker} import --message \"${BOOTSTRAP}\" - ${IMAGE}:${TAG}
+										}
+
+									}
+
+									[[ ${ARTIFACTS-} =~ ^1|yes|true|YES|TRUE$ ]] && {
+										tar --create --overwrite --directory=${TARGET} --file=${ARTIFACT} .
+										tar --create --overwrite --directory=${TARGET} --file=${ARTIFACT}.xz --xz .
+										tar --create --overwrite --directory=${TARGET} --file=${ARTIFACT}.gz --gzip .
+
+										echo && ls -lah ${ARTIFACT}*
+									}
+								}
+							}
+						}
+					done
+				done
+			done
+		}
+	}
+done

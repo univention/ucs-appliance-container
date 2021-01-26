@@ -1,0 +1,122 @@
+#!/bin/bash
+#
+# Univention Container Mode - setup
+#
+# Copyright YYYY-YYYY Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+eval "$(ucr shell hostname domainname password/hashing/method machine/password/complexity machine/password/length)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## setup basesystem from container mode environment
+# role   : <string> basesystem
+# rootpw : <string> default(random)
+# sshkey : <string>
+#
+[[ -z ${role:-} ]] && exit 1
+
+role=$(
+	echo -n ${role} | awk '\
+	 /^[a-zA-Z]/{ printf tolower($1)  } \
+	!/^[a-zA-Z]/{ printf "basesystem" }'
+)
+
+# import ssh public key
+[[ -z ${sshkey:-} ]] || {
+	mkdir --parents /root/.ssh && {
+		touch /root/.ssh/authorized_keys &&
+			echo ${sshkey} >/root/.ssh/authorized_keys
+	}
+}
+
+# generate root password if needed
+[[ -z ${rootpw:-} ]] && passwd=$(
+	pwgen -1 -${machine_password_complexity:-scn} ${machine_password_length:-64} | tr --delete '\n'
+)
+[[ -z ${passwd:-} ]] || echo -n ${passwd} >/dev/shm/univention-container-mode.secrets
+[[ -z ${rootpw:-} ]] && rootpw=${passwd}
+#
+# set root password
+#
+which mkpasswd >/dev/null 2>&1 || echo "root:${rootpw}" | chpasswd
+which mkpasswd >/dev/null 2>&1 &&
+	usermod --password $(mkpasswd -H ${password_hashing_method:-SHA-512} "${rootpw}") root
+
+# set server role
+#
+univention-config-registry set "server/role=${role}" >/dev/null
+
+# fake join for systemd container mode units
+#
+mkdir --parents /var/univention-join && {
+	touch /var/univention-join/{joined,status}
+}
+#
+## setup basesystem from container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	role \
+	hostname domainname \
+	sshkey rootpw passwd \
+	password_hashing_method \
+	machine_password_length \
+	machine_password_complexity \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"
