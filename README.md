@@ -24,3 +24,14 @@ Here you will find advanced example(s) for running a ucs with different systems 
 
 ## [Clean sensitive credentials from container environment](docs/README.ENVIRONMENT.CLEANUP.md)
 You don't wan't sensitive credentials in your environment variables after an succeeded firt start/boot, take a look into this section to cleanup your container.
+
+## Contributing
+
+Please read the [contributing guide](./CONTRIBUTING.md) to find more information about the UCS development process, how to propose bugfixes and improvements.
+The [Code of Conduct contains guidelines](./CONTRIBUTING.md#code-of-conduct) we expect project participants to adhere to.
+
+## License
+
+Univention Corporate Server is built on top of many existing open source projects which use their own licenses.
+The source code of all parts written by Univention like the management system is licensed under the AGPLv3 if not stated otherwise directly in the source code.
+Please see the [license file](./LICENSE) for more information.
