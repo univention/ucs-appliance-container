@@ -30,7 +30,7 @@
 							"tag": "latest",
 							"gpg": {
 								"key": {
-									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"name": "Univention Corporate Server 4.x <container@univention.de>",
 									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
 									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
 									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
@@ -62,7 +62,7 @@
 							"tag": "ucs446",
 							"gpg": {
 								"key": {
-									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"name": "Univention Corporate Server 4.x <container@univention.de>",
 									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
 									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
 									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
@@ -94,7 +94,7 @@
 							"tag": "ucs445",
 							"gpg": {
 								"key": {
-									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"name": "Univention Corporate Server 4.x <container@univention.de>",
 									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
 									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
 									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
@@ -126,7 +126,7 @@
 							"tag": "ucs444",
 							"gpg": {
 								"key": {
-									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"name": "Univention Corporate Server 4.x <container@univention.de>",
 									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
 									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
 									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
@@ -158,7 +158,7 @@
 							"tag": "ucs443",
 							"gpg": {
 								"key": {
-									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"name": "Univention Corporate Server 4.x <container@univention.de>",
 									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
 									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
 									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
@@ -190,7 +190,7 @@
 							"tag": "ucs442",
 							"gpg": {
 								"key": {
-									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"name": "Univention Corporate Server 4.x <container@univention.de>",
 									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
 									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
 									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
@@ -222,7 +222,7 @@
 							"tag": "ucs441",
 							"gpg": {
 								"key": {
-									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"name": "Univention Corporate Server 4.x <container@univention.de>",
 									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
 									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
 									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
@@ -254,7 +254,7 @@
 							"tag": "ucs440",
 							"gpg": {
 								"key": {
-									"name": "Univention Corporate Server 4.x <packages@univention.de>",
+									"name": "Univention Corporate Server 4.x <container@univention.de>",
 									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
 									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
 									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",

@@ -10,7 +10,7 @@ ARG DATE
 ARG COMMENT
 ARG VERSION
 ARG CONTAINER
-LABEL maintainer="Univention GmbH <info@univention.de>" \
+LABEL maintainer="Univention GmbH <container@univention.de>" \
   org.label-schema.build-date=${DATE} \
   org.label-schema.name="Univention Corporate Server (UCS) Container Mode" \
   org.label-schema.description="Self deployed container for running UCS with clean environment." \
