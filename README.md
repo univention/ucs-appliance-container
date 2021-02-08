@@ -22,15 +22,18 @@ Here you will find all basic examples for running a ucs with different systems r
 ## [Advanced examples](docs/README.ADVANCED.EXAMPLES.md)
 Here you will find advanced example(s) for running a ucs with different systems roles and some additional options, like networking and external certificate(s).
 
-## [Clean sensitive credentials from container environment](docs/README.ENVIRONMENT.CLEANUP.md)
-You don't wan't sensitive credentials in your environment variables after an succeeded firt start/boot, take a look into this section to cleanup your container.
+## [Extended usage](docs/README.EXTENDED.USAGE.md)
+Would you like to expand the project for yourself? Have a look at the section [extended usage](docs/README.EXTENDED.USAGE.md) and read about the possibilities with a [template](root/usr/lib/univention-container-mode/template) file and how to place it. But if you think, that will be great for all of us, check [this on](CONTRIBUTING.md) too.
 
-## Contributing
+## [Clean sensitive credentials from container environment](docs/README.ENVIRONMENT.CLEANUP.md)
+You don't wan't sensitive credentials in your environment variables after an succeeded first start/boot, take a look into this section to cleanup your container.
+
+## [Contributing](CONTRIBUTING.md)
 
 Please read the [contributing guide](./CONTRIBUTING.md) to find more information about the UCS development process, how to propose bugfixes and improvements.
 The [Code of Conduct contains guidelines](./CONTRIBUTING.md#code-of-conduct) we expect project participants to adhere to.
 
-## License
+## [License](LICENSE)
 
 Univention Corporate Server is built on top of many existing open source projects which use their own licenses.
 The source code of all parts written by Univention like the management system is licensed under the AGPLv3 if not stated otherwise directly in the source code.

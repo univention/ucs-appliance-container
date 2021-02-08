@@ -40,6 +40,15 @@ This will also set some ```BASH``` options
 ```
 
 #### maximum/special environment variables ```(egrep -- "^--env" README.ENVIRONMENT.md | sed 's/^\-\-env\s//g')```
+You need a alternative way to ``` ( docker run ... --env key=value ... ) ``` or like to use the [docker swarm secrets](https://docs.docker.com/engine/swarm/secrets/) style? It's implemented, but not yet tested!
+
+This works also as read only volume mount and will be used inside the container as environment variable.
+
+STEP 1. ``` echo ${value} > ${key} ``` or ``` jq --compact-output . ${key}.json > ${key} ```
+
+STEP 2. ``` docker run ... --volume ${key}:/run/secrets/${key}:ro ... ```
+
+Finaly, you find the secret ```key``` with ```value``` by the container path ``` /run/secrets/${key} ```, but it's not inside the environment ``` ( docker exec ... env ) ```. Pleas note, each key will be transferred into a environment file ``` ( /dev/shm/univention-container-mode.env ) ``` separately.
 
 ##### role<string DEFAULT(master)>
 Set the system role to [master](https://docs.software-univention.de/manual.html#domain-ldap:Domain_controller_master), [slave](https://docs.software-univention.de/manual.html#domain-ldap:Domain_controller_slave), [backup](https://docs.software-univention.de/manual.html#domain-ldap:Domain_controller_backup), [member](https://docs.software-univention.de/manual.html#domain-ldap:Member_server) or [basesystem](https://docs.software-univention.de/manual.html#domain-ldap:Base_system).
@@ -48,7 +57,7 @@ Set the system role to [master](https://docs.software-univention.de/manual.html#
 ```
 
 ##### [[ role != master ]] && {
-If the system role is't a master ( excluded [basesystem](https://docs.software-univention.de/manual.html#domain-ldap:Base_system) ), we need to join a master with a vaild accout plus password.
+If the system role isn't a master ( excluded [basesystem](https://docs.software-univention.de/manual.html#domain-ldap:Base_system) ), we need to join a master with a vaild accout plus password.
 ```bash
 --env dcname=DomainControllerName
 --env dcuser=DomainControllerUserAccount
