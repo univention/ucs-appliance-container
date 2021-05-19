@@ -80,6 +80,8 @@ RUN \
   /lib/systemd/system/sockets.target.wants/*initctl*            \
   /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup*
 
+RUN ln -s /bin/false /usr/sbin/univention-check-join-status
+
 RUN systemctl enable --                                         \
   univention-container-mode-environment.service                 \
   univention-container-mode-firstboot.service                   \
