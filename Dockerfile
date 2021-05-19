@@ -28,7 +28,7 @@ RUN while ! timeout 45 univention-config-registry set repository/online=true && 
   sleep 15 && univention-config-registry set repository/online=false; \
   done
 
-ARG APT="apt-get --verbose-versions --assume-yes --no-install-recommends install"
+ARG APT="apt-get --verbose-versions --no-install-recommends -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1 install"
 
 # podman run and build quick and dirty fix ( Creating new user ... chfn: PAM: System error )
 RUN $(which chfn) --full-name "ucs container root" root || ln --symbolic --force /bin/true $(which chfn)
