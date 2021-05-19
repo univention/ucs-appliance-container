@@ -21,6 +21,38 @@
 					},
 					"mirror": "https://updates.software-univention.de",
 					"codenames": {
+						"ucs500": {
+							"name": "ucs500",
+							"arch": [
+								"amd64"
+							],
+							"tag": "latest",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 5.x <container@univention.de>",
+									"hash": "TODO",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-5x.gpg",
+									"date": {
+										"created": "2021-05-25"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"univention-base-files",
+									"univention-updater",
+									"univention-network-common"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils",
+									"python3-cffi-backend"
+								]
+							}
+						},
 						"ucs447": {
 							"name": "ucs447",
 							"arch": [
