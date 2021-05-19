@@ -335,7 +335,9 @@ for strap in debootstrap febootstrap; do
 							}
 
 							OPTION="${OPTION} --keyring ${KEYRING}"
-							MIRROR="${MIRROR}/${MAJOR}.${MINOR}/maintained/${MAJOR}.${MINOR}-${PATCH}"
+							if [[ "${MAJOR}" -lt "5" ]]; then
+								MIRROR="${MIRROR}/${MAJOR}.${MINOR}/maintained/${MAJOR}.${MINOR}-${PATCH}"
+							fi
 						}
 					} ;;
 					*) {
