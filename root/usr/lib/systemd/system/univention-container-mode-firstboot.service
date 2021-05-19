@@ -46,9 +46,8 @@ TimeoutSec=0
 RemainAfterExit=yes
 EnvironmentFile=/dev/shm/univention-container-mode.env
 WorkingDirectory=/usr/lib/univention-container-mode
-ExecStartPre=/bin/bash  -c '[[ "${role}" == "basesystem" ]] && run-parts --verbose -- base  || /bin/true'
-ExecStart=/bin/bash     -c '[[ "${role}" != "basesystem" ]] && run-parts --verbose -- join  || /bin/true'
-ExecStartPost=/bin/bash -c '[[ "${role}" != "basesystem" ]] && univention-check-join-status || /bin/true'
+ExecStart=/bin/sh     -c 'run-parts --verbose -- join  || /bin/true'
+ExecStartPost=/bin/sh -c 'univention-check-join-status || /bin/true'
 
 # If we don't have a basesystem
 #ExecStart=/bin/bash -c 'run-parts --verbose -- join && univention-check-join-status'
