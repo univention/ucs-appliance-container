@@ -19,7 +19,7 @@
 							"stable": "https://packages.debian.org/stable"
 						}
 					},
-					"mirror": "https://updates.software-univention.de",
+					"mirror": "https://updates-test.software-univention.de",
 					"codenames": {
 						"ucs500": {
 							"name": "ucs500",
