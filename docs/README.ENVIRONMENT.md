@@ -51,7 +51,7 @@ STEP 2. ``` docker run ... --volume ${key}:/run/secrets/${key}:ro ... ```
 Finaly, you find the secret ```key``` with ```value``` by the container path ``` /run/secrets/${key} ```, but it's not inside the environment ``` ( docker exec ... env ) ```. Pleas note, each key will be transferred into a environment file ``` ( /dev/shm/univention-container-mode.env ) ``` separately.
 
 ##### role<string DEFAULT(master)>
-Set the system role to [primary node](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup node](https://docs.software-univention.de/ manual.html#domain-ldap:Backup_Directory_Node), [replica node](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) or [managed node](https://  docs.software-univention.de/manual.html#domain-ldap:Managed_Node).
+Set the system role to [primary node](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup node](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica node](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) or [managed node](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node).
 ```bash
 --env role=(master|slave|backup|member|basesystem)
 ```
