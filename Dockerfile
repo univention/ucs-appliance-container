@@ -8,7 +8,7 @@ ARG VERSION
 LABEL maintainer="Univention GmbH <packages@univention.de>" \
   org.label-schema.build-date=${DATE} \
   org.label-schema.name="Univention Corporate Server (UCS) Container Mode" \
-  org.label-schema.description="Self deploying container for running Univention Corporate Server (UCS) with role master, slave, backup, member or basesystem." \
+  org.label-schema.description="Self deploying container for running Univention Corporate Server (UCS) with role primary, backup, replica directory node or managed node." \
   org.label-schema.url="https://www.univention.com/products/ucs/" \
   org.label-schema.vcs-ref=${VERSION} \
   org.label-schema.vcs-url="https://github.com/univention/ucs-appliance-container" \

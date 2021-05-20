@@ -1,6 +1,6 @@
 # Univention Corporate Server - Container Mode
 
-This is a self deploying container for running a [Univention Corporate Server](https://www.univention.com/products/ucs/) ([UCS](https://docs.software-univention.de/manual.html)) with the role of [master](https://docs.software-univention.de/manual.html#domain-ldap:Domain_controller_master), [slave](https://docs.software-univention.de/manual.html#domain-ldap:Domain_controller_slave), [backup](https://docs.software-univention.de/manual.html#domain-ldap:Domain_controller_backup), [member](https://docs.software-univention.de/manual.html#domain-ldap:Member_server) or [basesystem](https://docs.software-univention.de/manual.html#domain-ldap:Base_system).
+This is a self deploying container for running a [Univention Corporate Server](https://www.univention.com/products/ucs/) ([UCS](https://docs.software-univention.de/manual.html)) with the role of [primary node](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup node](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica node](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) or [managed node](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node).
 
 ## Environment and recommended container options
 This is the container environment with the minimum and/or maximum amount settings. The environment variables can also set and/or unset the [univention config registry](https://docs.software-univention.de/developer-reference.html#chap:ucr) (ucr) entryes.
@@ -51,7 +51,7 @@ STEP 2. ``` docker run ... --volume ${key}:/run/secrets/${key}:ro ... ```
 Finaly, you find the secret ```key``` with ```value``` by the container path ``` /run/secrets/${key} ```, but it's not inside the environment ``` ( docker exec ... env ) ```. Pleas note, each key will be transferred into a environment file ``` ( /dev/shm/univention-container-mode.env ) ``` separately.
 
 ##### role<string DEFAULT(master)>
-Set the system role to [master](https://docs.software-univention.de/manual.html#domain-ldap:Domain_controller_master), [slave](https://docs.software-univention.de/manual.html#domain-ldap:Domain_controller_slave), [backup](https://docs.software-univention.de/manual.html#domain-ldap:Domain_controller_backup), [member](https://docs.software-univention.de/manual.html#domain-ldap:Member_server) or [basesystem](https://docs.software-univention.de/manual.html#domain-ldap:Base_system).
+Set the system role to [primary node](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup node](https://docs.software-univention.de/ manual.html#domain-ldap:Backup_Directory_Node), [replica node](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) or [managed node](https://  docs.software-univention.de/manual.html#domain-ldap:Managed_Node).
 ```bash
 --env role=(master|slave|backup|member|basesystem)
 ```
