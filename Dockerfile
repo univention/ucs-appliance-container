@@ -22,24 +22,18 @@ LABEL maintainer="Univention GmbH <packages@univention.de>" \
 ENV DEBIAN_FRONTEND noninteractive
 RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 
-RUN echo > /etc/apt/sources.list
-RUN while ! timeout 45 univention-config-registry set repository/online=true && \
-  egrep --silent --recursive --invert-match -- Traceback /etc/apt/sources.*; do \
-  sleep 15 && univention-config-registry set repository/online=false; \
-  done
-
-ARG APT="apt-get --verbose-versions --no-install-recommends -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1 install"
+ARG APT="apt-get --no-install-recommends -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false -o Acquire::Max-FutureTime=31536000 -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1"
 
 # podman run and build quick and dirty fix ( Creating new user ... chfn: PAM: System error )
 RUN $(which chfn) --full-name "ucs container root" root || ln --symbolic --force /bin/true $(which chfn)
 
 # install dependencies
 RUN \
-  apt-get update;                                               \
-  ${APT} univention-base-packages cron systemd systemd-sysv;    \
-  apt-get dist-upgrade --assume-yes;                            \
-  apt-get autoremove --assume-yes;                              \
-  apt-get clean
+  ${APT} update;                                               \
+  ${APT} --verbose-versions install univention-base-files univention-updater cron systemd systemd-sysv;    \
+  ${APT} dist-upgrade --assume-yes;                            \
+  ${APT} autoremove --assume-yes;                              \
+  ${APT} clean
 
 # get univention-container-mode
 COPY root /

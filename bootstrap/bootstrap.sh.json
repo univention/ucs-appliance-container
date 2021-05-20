@@ -40,11 +40,7 @@
 							},
 							"packages": {
 								"variant": "minbase",
-								"include": [
-									"univention-base-files",
-									"univention-updater",
-									"univention-network-common"
-								],
+								"include": [],
 								"exclude": [],
 								"default": [
 									"apt-utils",
