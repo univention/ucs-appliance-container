@@ -8,6 +8,54 @@
 			],
 			"dir": "/var/cache/debootstrap",
 			"distributions": {
+				"univention-corporate-server-test": {
+					"name": "univention-corporate-server-test",
+					"url": {
+						"distribution": "https://www.univention.com/products/ucs/",
+						"architecture": null,
+						"repository": null,
+						"release": "https://www.univention.com/products/ucs/release-information/",
+						"package": {
+							"stable": "https://packages.debian.org/stable"
+						}
+					},
+					"mirror": "https://updates-test.software-univention.de",
+					"codenames": {
+						"ucs500": {
+							"name": "ucs500",
+							"arch": [
+								"amd64"
+							],
+							"tag": "test",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 5.x <container@univention.de>",
+									"hash": "8321745BB32A82C75BBD4BC2D293E501A055F562",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates-test.software-univention.de/univention-archive-key-ucs-5x.gpg",
+									"date": {
+										"created": "2020-05-08",
+										"expire": "2027-05-07"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils",
+									"python3-cffi-backend"
+								]
+							}
+						}
+					},
+					"options": [
+						"verbose",
+						"force-check-gpg"
+					]
+				},
 				"univention-corporate-server": {
 					"name": "univention-corporate-server",
 					"url": {

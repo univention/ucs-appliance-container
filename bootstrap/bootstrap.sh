@@ -307,7 +307,7 @@ for strap in debootstrap febootstrap; do
 					OPTION="${OPTION}${VARIANT}"
 
 					case ${distribution} in
-					univention-corporate-server) {
+					univention-corporate-server*) {
 						[[ $(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".gpg.key.hash ${JSON}) == null ]] || {
 							HASH=$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".gpg.key.hash ${JSON})
 							FILE=$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".gpg.key.file ${JSON})
@@ -416,7 +416,7 @@ for strap in debootstrap febootstrap; do
 										tar --create --directory=${TARGET} . |
 										${docker} import --message "${BOOTSTRAP}" - ${IMAGE}:${VERSION}
 
-									[[ ${TAG} =~ ^latest$ ]] && {
+									[[ ${TAG} =~ ^latest|test$ ]] && {
 										${docker} image tag ${IMAGE}:${VERSION} ${IMAGE}:${TAG}
 
 										[[ ${docker} =~ podman$ ]] && {
