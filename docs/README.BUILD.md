@@ -17,7 +17,7 @@ STDOUT ( timeing )
 ## Build minbase bootstrap container image from scratch ```( optionally with time )```
 Script for docker or podman with debootstrap that imports the first container image to local registry.  But, there are some dependencies for this. You can have a look into the script ``` bootstrap.sh ``` or maybe you will get some instructions to fix them.
 ```bash
-VERSION="4.4-7"; \
+VERSION="5.0-0"; \
   time /bin/bash bootstrap/bootstrap.sh \
     --use-cache \
     --arch amd64 \
@@ -26,9 +26,9 @@ VERSION="4.4-7"; \
 ...
 I: Base system installed successfully.
 ...
-real  1m54,425s
-user  0m52,230s
-sys   0m23,731s
+real    1m33,745s
+user    1m18,895s
+sys     0m15,447s
 ...
 ```
 If your an non root podman user, an extra step is requerd:
@@ -46,7 +46,7 @@ docker image inspect univention-corporate-server-debootstrap:latest
 ```
 ## Build a deployment container image ```( optionally with time )```
 ```bash
-VERSION="4.4-7"; IMAGE="univention-corporate-server-debootstrap"; TAG="latest"; \
+VERSION="5.0-0"; IMAGE="univention-corporate-server-debootstrap"; TAG="latest"; \
   time docker build \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
     --build-arg VERSION=${VERSION} \
@@ -58,9 +58,9 @@ VERSION="4.4-7"; IMAGE="univention-corporate-server-debootstrap"; TAG="latest"; 
 ...
 Successfully tagged univention-corporate-server:latest
 ...
-real  1m23,216s
-user  0m0,162s
-sys   0m0,164s
+real    1m27,116s
+user    0m0,193s
+sys     0m0,141s
 ...
 ```
 ### Inspect the univention-corporate-server container image
