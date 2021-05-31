@@ -1,6 +1,6 @@
 # Univention Corporate Server - Container Mode
 
-This is a self deploying container for running a [Univention Corporate Server](https://www.univention.com/products/ucs/) ([UCS](https://docs.software-univention.de/manual.html)) with the role of [primary node](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup node](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica node](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) or [managed node](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node).
+This is a self deploying container for running a [Univention Corporate Server](https://www.univention.com/products/ucs/) ([UCS](https://docs.software-univention.de/manual.html)) with the role of [primary](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) directory node or [managed](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node) node.
 
 CLI SYNTAX:
 ```bash
@@ -197,7 +197,7 @@ PASSWORD FOR HOST(bdc.ucs.example) WITH ROLE(domaincontroller_backup):
 ...
 ```
 
-### Memberserver, default with minimum environment, auto generated root password and sensitive credentials
+### Managed Node ( aka "member" ), default with minimum environment, auto generated root password and sensitive credentials
 #### deploy ```HOSTNAME(mdc) DOMAINNAME(ucs.example) CONTAINERNAME(mdc.ucs.example)```
 ```bash
 MASTER=dc.ucs.example; FQDN=m${MASTER}; \
@@ -257,7 +257,7 @@ PASSWORD FOR HOST(mdc.ucs.example) WITH ROLE(memberserver):
 ...
 ```
 
-### Basesystem, default with minimum environment and auto generated root password
+### ~~Basesystem, default with minimum environment and auto generated root password~~[^1]
 #### deploy ```HOSTNAME(basesystem) DOMAINNAME(unassigned.invalid) CONTAINERNAME(basesystem.unassigned.invalid)```
 ```bash
 FQDN=basesystem.unassigned.invalid; \
@@ -305,3 +305,5 @@ PASSWORD FOR HOST(basesystem.unassigned.invalid) WITH ROLE(basesystem):
 	LOCAL USER: USER(root)          PASS(ADm1nAndRo0tPaSSw0rdFoRsYst3mRoleMaSt3r)
 ...
 ```
+
+[^1]: Since UCS version 5.x, the basesystem is omitted!

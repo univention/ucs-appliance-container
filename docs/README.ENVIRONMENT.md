@@ -1,11 +1,11 @@
 # Univention Corporate Server - Container Mode
 
-This is a self deploying container for running a [Univention Corporate Server](https://www.univention.com/products/ucs/) ([UCS](https://docs.software-univention.de/manual.html)) with the role of [primary node](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup node](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica node](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) or [managed node](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node).
+This is a self deploying container for running a [Univention Corporate Server](https://www.univention.com/products/ucs/) ([UCS](https://docs.software-univention.de/manual.html)) with the role of [primary](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) directory node or [managed](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node) node.
 
 ## Environment and recommended container options
 This is the container environment with the minimum and/or maximum amount settings. The environment variables can also set and/or unset the [univention config registry](https://docs.software-univention.de/developer-reference.html#chap:ucr) (ucr) entryes.
 
-For minimum amount setting, you need the container option ( ``` --hostname ${hostname}.${domainname} ``` ) and you get a ucs [master](https://docs.software-univention.de/manual.html#domain-ldap:Domain_controller_master) with auto generated root/Administrator password. But, take a look at all the environment options, it will explaine you the features of this project.
+For minimum amount setting, you need the container option ( ``` --hostname ${hostname}.${domainname} ``` ) and you get a ucs [primary](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node) directory node with auto generated root/Administrator password. But, take a look at all the environment options, it will explaine you the features of this project.
 
 ### First start/boot ```( systemctl status univention-container-mode-firstboot.service )```
 
@@ -51,13 +51,18 @@ STEP 2. ``` docker run ... --volume ${key}:/run/secrets/${key}:ro ... ```
 Finaly, you find the secret ```key``` with ```value``` by the container path ``` /run/secrets/${key} ```, but it's not inside the environment ``` ( docker exec ... env ) ```. Pleas note, each key will be transferred into a environment file ``` ( /dev/shm/univention-container-mode.env ) ``` separately.
 
 ##### role<string DEFAULT(master)>
-Set the system role to [primary node](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup node](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica node](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) or [managed node](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node).
-```bash
+Set the system role to [primary](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) directory node or [managed](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node) node.
+
+~~```
 --env role=(master|slave|backup|member|basesystem)
+```~~[^1]
+
+```bash
+--env role=(master|slave|backup|member)
 ```
 
 ##### [[ role != master ]] && {
-If the system role isn't a master ( excluded [basesystem](https://docs.software-univention.de/manual.html#domain-ldap:Base_system) ), we need to join a master with a vaild accout plus password.
+If the system role isn't a [primary](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node) directory node ( excluded [~~basesystem~~](https://docs.software-univention.de/manual-4.4.html#domain-ldap:Base_system) ), we need to join a master with a vaild accout plus password.
 ```bash
 --env dcname=DomainControllerName
 --env dcuser=DomainControllerUserAccount
@@ -113,7 +118,7 @@ Fallback forwarder defined as ( "1.1.1.1" "8.8.8.8" "9.9.9.9" ) if any given for
 ```
 
 ##### install/remove extra packages and/or add apps into the univention app center from JSON
-Packages that start with univention ```/^univention-/``` will try to be installed via univention app center ```/^univention-<APP>/```. Removed packages are marked as automaticly installed and the value ```add-app``` instead of ```install``` will perform ``` ( univention-add-app --all <APP> ) ```.
+Packages that start with univention ```/^univention-/``` will try to be installed via univention app center ```/^univention-<APP>/```. Removed packages are marked as automaticly installed and the value ```add-app``` instead of ```install``` will perform ``` ( univention-add-app --all <APP> ) ``` or ``` ( univention-app install --noninteractive <APP> ) ```.
 
 Example: The package univention-samba4 will be installed via apt ``` ( apt-get install univention-samba4 ) ``` and via app center ``` ( univention-add-app --all samba4 ) ``` too. But if you need an AD-compatible domain controller ( [samba4](https://www.univention.com/products/univention-app-center/app-catalog/samba4/) ), keep it simple and use ``` ( --env install='{"add-app":["samba4"]}' ) ``` maybe with print server ( [cups](https://www.univention.com/products/univention-app-center/app-catalog/cups/) ) ``` ( --env install='{"add-app":["samba4","cups"]}' ) ```.
 
@@ -283,3 +288,5 @@ CERT=/etc/univention/ssl/ucsCA/CAcert.pem; SIGN=/etc/univention/ssl/ucsCA/privat
 ```bash
 --env license="(-: FIXME >> LICENSE IMPORT NOT YET IMPLEMENTED << FIXME :-)"
 ```
+
+[^1]: Since UCS version 5.x, the basesystem is omitted!
