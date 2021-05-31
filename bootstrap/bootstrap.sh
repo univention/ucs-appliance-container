@@ -335,9 +335,7 @@ for strap in debootstrap febootstrap; do
 							}
 
 							OPTION="${OPTION} --keyring ${KEYRING}"
-							if [[ "${MAJOR}" -lt "5" ]]; then
-								MIRROR="${MIRROR}/${MAJOR}.${MINOR}/maintained/${MAJOR}.${MINOR}-${PATCH}"
-							fi
+							[[ "${MAJOR}" -ge "5" ]] || MIRROR="${MIRROR}/${MAJOR}.${MINOR}/maintained/${MAJOR}.${MINOR}-${PATCH}"
 						}
 					} ;;
 					*) {
@@ -350,7 +348,7 @@ for strap in debootstrap febootstrap; do
 						test -x ${arch} && ${arch} || echo ${arch}
 					); do
 						${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".arch[] ${JSON} | egrep --quiet ${ARCH} ||
-							echo "INFO: Skipping non supported architecture ${ARCH} ..."
+							echo "INFO: Skipping non-supported architecture ${ARCH} ..."
 						${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".arch[] ${JSON} | egrep --quiet ${ARCH} && {
 							OPTION="${BootStrapOptions} --arch ${ARCH}"
 
