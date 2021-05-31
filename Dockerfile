@@ -22,6 +22,12 @@ LABEL maintainer="Univention GmbH <packages@univention.de>" \
 ENV DEBIAN_FRONTEND noninteractive
 RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 
+# clean only for UCS 4.x default sources.list from debootstrap
+RUN \
+  which ucr > /dev/null 2>&1 &&                                 \
+  ucr get version/version | egrep --silent -- ^4 &&             \
+  echo > /etc/apt/sources.list || /bin/true
+
 ARG APT="apt-get --no-install-recommends -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false -o Acquire::Max-FutureTime=31536000 -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1"
 
 # podman run and build quick and dirty fix ( Creating new user ... chfn: PAM: System error )
@@ -29,11 +35,17 @@ RUN $(which chfn) --full-name "ucs container root" root || ln --symbolic --force
 
 # install dependencies
 RUN \
-  ${APT} update;                                               \
-  ${APT} --verbose-versions install univention-base-files univention-updater cron systemd systemd-sysv;    \
-  ${APT} dist-upgrade --assume-yes;                            \
-  ${APT} autoremove --assume-yes;                              \
+  ${APT} update;                                                \
+  ${APT} --verbose-versions install                             \
+  univention-base-files univention-updater                      \
+  cron systemd systemd-sysv;                                    \
+  ${APT} dist-upgrade --assume-yes;                             \
+  ${APT} autoremove --assume-yes;                               \
   ${APT} clean
+
+# set different repository online server by --build-arg MIRROR
+ARG MIRROR="https://updates.software-univention.de/"
+RUN ucr set repository/online/server=${MIRROR}
 
 # get univention-container-mode
 COPY root /
@@ -82,8 +94,10 @@ RUN systemctl enable --                                         \
   univention-container-mode-fixes.service                       \
   univention-container-mode-init.service
 
-RUN systemctl mask --                                           \
-  tmp.mount
+# mask tmp.mount only for UCS 4.x ( Debian Stretch )
+RUN ucr get version/version | egrep --silent -- ^4 &&           \
+  systemctl mask --                                             \
+  tmp.mount || /bin/true
 
 RUN systemctl mask --                                           \
   lvm2.service lvm2-activation.service lvm2-monitor.service     \
