@@ -71,8 +71,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 				case ${key} in
 				add-app) { # install all requested univention app(s)
 					for app in $(echo ${install} | ${JSON} '."add-app"[]'); do
-						univention-add-app --list ${app} >/dev/null 2>&1 &&
-							univention-add-app --all ${app} || /bin/true
+						UniventionAddApp ${app} || /bin/true
 					done
 				} ;;
 				remove) { # set valied package(s) to auto install
@@ -86,13 +85,11 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 						[[ ${package} =~ ^univention ]] && {
 							# univention-<APP>
 							app=$(echo ${package} | sed 's/^univention\-//g')
-							univention-add-app --list ${app} >/dev/null 2>&1 &&
-								univention-add-app --all ${app} || /bin/true
+							UniventionAddApp ${app} || /bin/true
 							# univention-app-name vs appname
 							echo ${app} | egrep --silent -- "-" && {
 								app=$(echo ${app} | sed 's/\-//g')
-								univention-add-app --list ${app} >/dev/null 2>&1 &&
-									univention-add-app --all ${app} || /bin/true
+								UniventionAddApp ${app} || /bin/true
 							}
 						}
 						apt-cache search ${package} | egrep --silent "^${package}" &&

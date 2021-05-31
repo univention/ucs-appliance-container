@@ -83,20 +83,14 @@ function UniventionInstallLock() { # UniventionInstallLock: IN(${@})
 function UniventionAddApp() { # UniventionAddApp: IN(${@})
 	[[ "${#@}" -eq 0 || -z "${@}" ]] && return 1
 	[[ "${#@}" -eq 0 || -z "${@}" ]] || {
-		local timeout=1800
 
-		local counter=1
-		local repeat=3
-		local sleep=120
-
-		local UniventionAddAppCommand="univention-add-app --all"
-
-		debug "${UniventionAddAppCommand} ${@}"
-		while ! timeout ${timeout} ${UniventionAddAppCommand} ${@}; do
-			[[ ${counter} > ${repeat} ]] && echo "%s" "\nTIMEOUT(${UniventionAddAppCommand} ${@})" && return 1
-			counter=$((${counter} + 1))
-			sleep ${sleep}
-		done
+		if command -v univention-app; then
+			univention-app update
+			univention-app install --noninteractive ${@}
+		else
+			command -v univention-add-app || return 1
+			univention-add-app --all ${@}
+		fi
 	}
 }
 #
