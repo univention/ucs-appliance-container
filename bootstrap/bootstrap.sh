@@ -360,7 +360,7 @@ for strap in debootstrap febootstrap; do
 							[[ ${VERSION-} =~ ^$ ]] && VERSION=${codename}
 
 							[[ ${docker} =~ podman$ ]] &&
-								IMAGE=localhost/${distribution}-$(basename ${bootstrap}) || IMAGE=${distribution}-$(basename ${bootstrap})
+								IMAGE=localhost/${distribution/-test/}-$(basename ${bootstrap}) || IMAGE=${distribution/-test/}-$(basename ${bootstrap})
 
 							TAG=$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".tag ${JSON})
 
@@ -395,13 +395,19 @@ for strap in debootstrap febootstrap; do
 											${TARGET}/var/log/*/* \
 											${TARGET}/var/log/* >/dev/null 2>&1 || /bin/true
 
-									find ${TARGET} \
-										-maxdepth 1 \
-										-type l \
-										-name "*.install" \
-										-exec rm --force {} \;
+									[[ -d ${TARGET}/lib/modules ]] &&
+										rm --recursive --force \
+											${TARGET}/lib/modules/*
 
-									echo "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main" > \
+									[[ -d ${TARGET}/boot ]] &&
+										rm --force \
+											${TARGET}/boot/* >/dev/null 2>&1 || /bin/true
+
+									for name in "initrd.img" "vmlinuz" "install"; do
+										find ${TARGET} -maxdepth 1 -type l -name "*${name}*" -exec rm --force {} \;
+									done
+
+									echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR} ${SUITE/ucs/errata} main" > \
 										${TARGET}/etc/apt/sources.list
 
 									${docker} import --help | egrep --quiet -- "--platform" &&
