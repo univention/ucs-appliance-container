@@ -64,6 +64,12 @@ while ! timeout 45 univention-config-registry set repository/online=true &&
 	sleep 15 && univention-config-registry set repository/online=false
 done
 #
+# clean default source.list from debootstrap
+[[ -f /etc/apt/sources.list ]] && {
+	egrep --silent --recursive -- Traceback /etc/apt/sources.* ||
+		echo >/etc/apt/sources.list
+}
+#
 # don't clean external packages cache
 mountpoint /var/cache/apt/archives >/dev/null 2>&1 || {
 	apt-get autoclean >/dev/null 2>&1
