@@ -63,6 +63,12 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 #    => https://www.freedesktop.org/software/systemd/man/systemd-detect-virt.html
 #     => systemd-detect-virt --container
 #
+
+command -v patch || {
+	apt-get --verbose-versions --assume-yes --no-install-recommends install patch
+	apt-mark auto patch
+}
+
 patch /usr/share/univention-management-console-frontend/modules/reboot.js <<EOF
 @@ -44,15 +44,15 @@
  			label: _('Server'),
