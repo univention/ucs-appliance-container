@@ -110,12 +110,12 @@
 							"gpg": {
 								"key": {
 									"name": "Univention Corporate Server 4.x <container@univention.de>",
-									"hash": "6B6E7E3259A9F44F1452D1BE36602BA86B8BFD3C",
-									"file": "/usr/share/keyrings/univention-archive-key-ucs-4x.gpg",
-									"http": "https://updates.software-univention.de/univention-archive-key-ucs-4x.gpg",
+									"hash": "8321745BB32A82C75BBD4BC2D293E501A055F562",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-5x.gpg",
 									"date": {
-										"created": "2014-06-30",
-										"expire": "2021-06-28"
+										"created": "2020-05-08",
+										"expire": "2027-05-07"
 									}
 								}
 							},
