@@ -1,0 +1,152 @@
+#!/bin/bash
+#
+# Univention Container Mode - setup-pre-certificate-restore
+#
+# Copyright 2020-2021 Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## certificate(s) recover from backup for container mode environment
+#
+restore=/var/backups/univention-container-mode
+certificates=${restore}/certificates/*
+CertificateBaseDir=/etc/univention/ssl
+#
+rsync=rsync
+json=jq
+
+command -v ${rsync} >/dev/null 2>&1 || UniventionInstallNoRecommends ${rsync}
+command -v ${json} >/dev/null 2>&1 || UniventionInstallNoRecommends ${json}
+
+# restore only if we have a vaild backup ( join/99-system-restore-initialize )
+[[ -f ${restore}/restore ]] && [[ -d ${restore}/certificates ]] && command -v ${rsync} && command -v ${json} && {
+	JSON="${json} --raw-output"
+	#
+	# sync back certificates
+	${rsync} --archive --verbose --delete ${certificates} ${CertificateBaseDir}/
+	#
+	# update force the ca trust pool
+	ln \
+		--force \
+		--symbolic \
+		${CertificateBaseDir}/ucsCA/CAcert.pem \
+		/usr/local/share/ca-certificates/ucsCA.crt
+	#
+	# verify ( maybe self signed ) root certificate and update ca trust pool
+	openssl verify ${CertificateBaseDir}/ucsCA/CAcert.pem ||
+		openssl verify -CAfile /usr/local/share/ca-certificates/ucsCA.crt ${CertificateBaseDir}/ucsCA/CAcert.pem &&
+		update-ca-certificates --fresh
+	#
+	# extract and convert sign key algorithm/cipher into univention-config-registry
+	for algorithm in $(${JSON} '.root | keys[]' ${CertificateBaseDir}/certificates.json); do
+		case ${algorithm} in
+		rsa | dsa | ecdsa) {
+			[[ $(${JSON} ".root.${algorithm}.encryption.encrypted" ${CertificateBaseDir}/certificates.json) =~ ^1|yes|true|YES|TRUE$ ]] && {
+				ALG=$(${JSON} ".root.${algorithm}.encryption.algorithm" ${CertificateBaseDir}/certificates.json)
+				[[ ${ALG} =~ ^AES ]] && { # match(aes128|aes192|aes256)
+					univention-config-registry set ssl/ca/cipher=$(echo ${ALG} | awk '{ split($0,ALG,"-"); printf "%s%s", tolower(ALG[1]), ALG[2] }')
+				}
+				[[ ${ALG} =~ ^DES ]] && { # match(des|des3)
+					univention-config-registry set ssl/ca/cipher=$(echo ${ALG} | awk '{ split($0,ALG,"-"); printf "%s"  , tolower(ALG[1]) }')
+				}
+			}
+		} ;;
+		esac
+	done
+	#
+	# extract root certificate subject and save it into univention-config-registry
+	openssl x509 -noout -subject -in ${CertificateBaseDir}/ucsCA/CAcert.pem | awk '\
+		/^subject=/{ \
+			gsub(/^subject=/, "", $0); \
+			split($0,SUBJECT,", "); \
+			for(i=1;SUBJECT[i]!="";i++){ \
+				gsub(/\s=\s/          , "="                       , SUBJECT[i]); \
+				gsub(/ = /            , "="                       , SUBJECT[i]); \
+				gsub(/^C=/            , "ssl/country="            , SUBJECT[i]); \
+				gsub(/^ST=/           , "ssl/state="              , SUBJECT[i]); \
+				gsub(/^L=/            , "ssl/locality="           , SUBJECT[i]); \
+				gsub(/^O=/            , "ssl/organization="       , SUBJECT[i]); \
+				gsub(/^OU=/           , "ssl/organizationalunit=" , SUBJECT[i]); \
+				gsub(/^CN=/           , "ssl/common="             , SUBJECT[i]); \
+				gsub(/^emailAddress=/ , "ssl/email="              , SUBJECT[i]); \
+				printf "\"%s\" ", SUBJECT[i]; \
+			} \
+		}' | xargs --no-run-if-empty univention-config-registry set || /bin/true
+	#
+	# show root certificate
+	openssl x509 -noout -text -in ${CertificateBaseDir}/ucsCA/CAcert.pem
+	#
+	# verify and show host certificate(s)
+	find \
+		${CertificateBaseDir}/*.${domainname} \
+		-maxdepth 1 \
+		-name cert.pem \
+		-exec openssl verify {} \; \
+		-exec openssl x509 -noout -text -in {} \;
+}
+#
+## certificate(s) recover from backup for container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	hostname domainname \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

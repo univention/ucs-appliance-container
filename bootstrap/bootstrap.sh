@@ -116,6 +116,7 @@ JSON=$0.json
 ARTIFACTS=FALSE
 DRY_RUN=FALSE
 CACHING=FALSE
+SLIMIFY=FALSE
 
 ## CHECK OPTION(S)
 [[ ${#@} == 0 ]] && {
@@ -226,6 +227,9 @@ while (("${#@}")); do
 	--use-cache) {
 		CACHING=TRUE
 	} ;;
+	--slimify) {
+		SLIMIFY=TRUE
+	} ;;
 	--dry-run) {
 		DRY_RUN=TRUE
 	} ;;
@@ -246,6 +250,8 @@ while (("${#@}")); do
 		echo ""
 		echo "ARG: /bin/bash $0 --use-cache"
 		echo ""
+		echo "ARG: /bin/bash $0 --slimify"
+		echo ""
 		echo "ARG: /bin/bash $0 --dry-run"
 		echo "ARG: /bin/bash $0 --debug"
 		exit 0
@@ -261,6 +267,8 @@ done
 	set -o nounset
 	set -o pipefail
 }
+
+[[ ${SLIMIFY:-} =~ ^1|yes|true|YES|TRUE$ ]] && SLIM="-slim" || SLIM=""
 
 for strap in debootstrap febootstrap; do
 	[[ $(${jq} .${PLATFORM}.${strap}.dir ${JSON}) == null ]] || {
@@ -364,6 +372,8 @@ for strap in debootstrap febootstrap; do
 
 							TAG=$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".tag ${JSON})
 
+							[[ ${TAG} =~ ^test$ ]] && VERSION=${VERSION}-${TAG}
+
 							[[ ${CACHING-} =~ ^1|yes|true|YES|TRUE$ ]] && {
 								${bootstrap} --help | egrep --quiet -- "--cache-dir" && {
 									mkdir --parents ${CACHED} && OPTION="${OPTION} --cache-dir ${CACHED}"
@@ -390,6 +400,10 @@ for strap in debootstrap febootstrap; do
 											${TARGET}/var/cache/apt/archives/partial/*.deb \
 											${TARGET}/var/cache/apt/*.bin
 
+									[[ -d ${TARGET}/var/cache/debconf ]] &&
+										rm --force \
+											${TARGET}/var/cache/debconf/*old
+
 									[[ -d ${TARGET}/var/log ]] &&
 										rm --force \
 											${TARGET}/var/log/*/* \
@@ -407,27 +421,58 @@ for strap in debootstrap febootstrap; do
 										find ${TARGET} -maxdepth 1 -type l -name "*${name}*" -exec rm --force {} \;
 									done
 
-									echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR} ${SUITE/ucs/errata} main" > \
-										${TARGET}/etc/apt/sources.list
+									[[ ${SLIMIFY-} =~ ^1|yes|true|YES|TRUE$ ]] && {
+										find ${TARGET}/usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' \
+											-exec rm --recursive --force {} \;
+
+										echo -e "path-exclude /usr/share/locale/*\npath-include /usr/share/locale/en*" > \
+											${TARGET}/etc/dpkg/dpkg.cfg.d/univention-container-mode
+										echo -e "force-unsafe-io" > \
+											${TARGET}/etc/dpkg/dpkg.cfg.d/univention-container-mode-apt-speedup
+
+										rm --recursive --force \
+											${TARGET}/usr/share/groff \
+											${TARGET}/usr/share/info \
+											${TARGET}/usr/share/linda \
+											${TARGET}/usr/share/lintian \
+											${TARGET}/usr/share/man \
+											${TARGET}/var/cache/man || /bin/true
+										find ${TARGET}/usr/share/doc -depth -type f ! -name copyright \
+											-delete
+										find ${TARGET}/usr/share/doc -depth -empty \
+											-delete
+									}
+
+									case ${SUITE} in
+									ucs5*) {
+										echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR} ${SUITE/ucs/errata} main" > \
+											${TARGET}/etc/apt/sources.list
+									} ;;
+									*) {
+										echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main" > \
+											${TARGET}/etc/apt/sources.list
+									} ;;
+									esac
+
+									tar --create --overwrite --directory=${TARGET} --file=${ARTIFACT} .
 
 									${docker} import --help | egrep --quiet -- "--platform" &&
-										tar --create --directory=${TARGET} . |
-										${docker} import --message "${BOOTSTRAP}" --platform "${PLATFORM}/${ARCH}" - ${IMAGE}:${VERSION} ||
-										tar --create --directory=${TARGET} . |
-										${docker} import --message "${BOOTSTRAP}" - ${IMAGE}:${VERSION}
+										${docker} import --message "${BOOTSTRAP}" --platform "${PLATFORM}/${ARCH}" ${ARTIFACT} ${IMAGE}:${VERSION}${SLIM} ||
+										${docker} import --message "${BOOTSTRAP}" ${ARTIFACT} ${IMAGE}:${VERSION}${SLIM}
 
 									[[ ${TAG} =~ ^latest|test$ ]] && {
-										${docker} image tag ${IMAGE}:${VERSION} ${IMAGE}:${TAG}
+										${docker} image tag ${IMAGE}:${VERSION}${SLIM} ${IMAGE}:${TAG}${SLIM}
 
 										[[ ${docker} =~ podman$ ]] && {
-											echo sudo tar --create --directory=${TARGET} . \| ${docker} import --message \"${BOOTSTRAP}\" - ${IMAGE}:${VERSION}
-											echo sudo tar --create --directory=${TARGET} . \| ${docker} import --message \"${BOOTSTRAP}\" - ${IMAGE}:${TAG}
+											echo
+											echo sudo ${docker} import --message \"${BOOTSTRAP}\" ${ARTIFACT} ${IMAGE}:${VERSION}${SLIM}
+											echo
+											echo sudo ${docker} image tag ${IMAGE}:${VERSION}${SLIM} ${IMAGE}:${TAG}${SLIM}
 										}
 
 									}
 
 									[[ ${ARTIFACTS-} =~ ^1|yes|true|YES|TRUE$ ]] && {
-										tar --create --overwrite --directory=${TARGET} --file=${ARTIFACT} .
 										tar --create --overwrite --directory=${TARGET} --file=${ARTIFACT}.xz --xz .
 										tar --create --overwrite --directory=${TARGET} --file=${ARTIFACT}.gz --gzip .
 

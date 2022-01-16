@@ -1,0 +1,146 @@
+#!/bin/bash
+#
+# Univention Container Mode - namespace
+#
+# Copyright 2020-2021 Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+# eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## Fix private tmp namespaces for container mode environment
+# remove hardening option(s) from known service unit(s)
+#
+# ToDo:
+#  - find a smarter way to fix this ...
+#
+units=(logrotate memcached phpsessionclean)
+namespace=/dev/shm/univention-container-mode.namespace.detected
+#
+# unmask/enable/start/restart service unit(s)
+for unit in ${units[@]}; do
+	for stat in unmask enable start restart; do
+		systemctl ${stat} -- ${unit}.service >/dev/null 2>&1 || /bin/true
+	done
+	journalctl --output cat --no-hostname --unit ${unit}.service |
+		egrep --quiet -- NAMESPACE && touch ${namespace}
+done
+#
+rm --verbose ${namespace} && {
+	[[ -f /lib/systemd/system/logrotate.service ]] && cat <<EOF >/etc/systemd/system/logrotate.service
+[Unit]
+Description=Rotate log files
+Documentation=man:logrotate(8) man:logrotate.conf(5)
+ConditionACPower=true
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/logrotate /etc/logrotate.conf
+
+# performance options
+Nice=19
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+EOF
+	[[ -f /lib/systemd/system/memcached.service ]] && cat <<EOF >/etc/systemd/system/memcached.service
+[Unit]
+Description=memcached daemon
+After=network.target
+Documentation=man:memcached(1)
+
+[Service]
+ExecStart=/usr/share/memcached/scripts/systemd-memcached-wrapper /etc/memcached.conf
+PIDFile=/var/run/memcached/memcached.pid
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+	[[ -f /lib/systemd/system/phpsessionclean.service ]] && cat <<EOF >/etc/systemd/system/phpsessionclean.service
+[Unit]
+Description=Clean php session files
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/php/sessionclean
+EOF
+}
+#
+systemctl daemon-reload
+#
+# start/restart service unit(s)
+for unit in ${units[@]}; do
+	for stat in start restart; do
+		systemctl ${stat} -- ${unit}.service >/dev/null 2>&1 || /bin/true
+	done
+done
+#
+# start/restart failed unit(s)
+for unit in service; do
+	for stat in start restart; do
+		systemctl list-units --no-pager --no-legend --state failed --type ${unit} | awk '/[a-z].*failed/{ print $1 }' | xargs --no-run-if-empty systemctl ${stat} -- 2>&1 || /bin/true
+	done
+done
+#
+## Fix private tmp namespaces for container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

@@ -1,0 +1,280 @@
+#!/bin/bash
+#
+# Univention Container Mode - setup-ldif
+#
+# Copyright 2020-2021 Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+function LdapAddOrModify() { # LdapAddOrModify: (${@})[>return ${?}]
+	local base=$(ucr get ldap/base)
+	local ldif=${1}
+	local ldap=$([[ ${2:-add} =~ ^add$ ]] && printf "ldapadd -cv" || printf "ldapmodify -cv")
+	local share=${3:-/usr/local/share/univention-ldap}
+	local exit=0
+
+	[[ -e ${ldif} ]] &&
+		for directory in /etc ${share}; do
+			for user in admin backup; do
+				secret=$([[ ${user} =~ ^admin$ ]] && printf "${directory}/ldap.secret" || printf "${directory}/ldap-backup.secret")
+				[[ -e ${secret} ]] && ldapsearch -LLL -D "cn=${user},${base}" -y ${secret} -s base >/dev/null 2>&1 &&
+					ucr filter <${ldif} | ${ldap} -D "cn=${user},${base}" -y ${secret} && return ${?} || exit=${?}
+			done
+		done
+
+	return ${exit}
+}
+function NetSetDomainIDs() { # NetSetDomainIDs: (${@})[>return ${?}]
+	#
+	# clean up the config registry and exit
+	[[ "${#@}" -eq 0 ]] || {
+		ucr unset \
+			net/get/domain/sid \
+			net/get/domain/rid/admins \
+			net/get/domain/rid/users \
+			net/get/domain/rid/max \
+			net/get/domain/gid/admins \
+			net/get/domain/gid/users \
+			net/get/domain/uid/max
+		return ${?}
+	}
+	#
+	# domains security identifier ( SID )
+	ucr set net/get/domain/sid=$(
+		net getdomainsid >/dev/null 2>&1 &&
+			net getdomainsid 2>&1 |
+			awk '/^SID.*\:/{ split($0, ID, ":"); gsub(/ /, "", ID[2]); printf ID[2] }' | head -1 ||
+			udm settings/sambadomain list --filter sambaDomainName=$(ucr get windows/domain) 2>&1 |
+			awk '/^.*SID\:/{ split($0, ID, ":"); gsub(/ /, "", ID[2]); printf ID[2] }' | head -1 ||
+			printf "%s" "S-0-0-00-0000000000-0000000000-0000000000"
+	)
+	#
+	# domains relative identifier ( RID ) for Domain Admins
+	ucr set net/get/domain/rid/admins=$(
+		udm groups/group list --filter cn=Domain\ Admins >/dev/null 2>&1 &&
+			udm groups/group list --filter cn=Domain\ Admins 2>&1 |
+			awk '/^.*sambaRID\:/{ split($0, ID, ":"); gsub(/ /, "", ID[2]); printf ID[2] }' |
+				sort --numeric-sort --reverse | head -1 | egrep -- "^5[[:digit:]]{2}$" ||
+			printf "%s" "512"
+	)
+	#
+	# domains relative identifier ( RID ) for Domain Users
+	ucr set net/get/domain/rid/users=$(
+		udm groups/group list --filter cn=Domain\ Users >/dev/null 2>&1 &&
+			udm groups/group list --filter cn=Domain\ Users 2>&1 |
+			awk '/^.*sambaRID\:/{ split($0, ID, ":"); gsub(/ /, "", ID[2]); printf ID[2] }' |
+				sort --numeric-sort --reverse | head -1 | egrep -- "^5[[:digit:]]{2}$" ||
+			printf "%s" "513"
+	)
+	#
+	# domains relative identifier ( RID ) for Domain Guests
+	ucr set net/get/domain/rid/guests=$(
+		udm groups/group list --filter cn=Domain\ Guests >/dev/null 2>&1 &&
+			udm groups/group list --filter cn=Domain\ Guests 2>&1 |
+			awk '/^.*sambaRID\:/{ split($0, ID, ":"); gsub(/ /, "", ID[2]); printf ID[2] }' |
+				sort --numeric-sort --reverse | head -1 | egrep -- "^5[[:digit:]]{2}$" ||
+			printf "%s" "514"
+	)
+	#
+	# domains relative identifier ( RID ) "{1100..1599}"
+	#  ldbsearch -H /var/lib/samba/private/sam.ldb cn=RID\ Set | egrep -- ^rIDAllocationPool
+	#
+	ucr set net/get/domain/rid/max=$(
+		net maxrid >/dev/null 2>&1 &&
+			net maxrid 2>&1 |
+			awk '/^.*rid\:/{ split($0, ID, ":"); gsub(/ /, "", ID[2]); printf ID[2] }' | head -1 ||
+			udm users/user list 2>&1 |
+			awk '/^.*sambaRID\:/{ split($0, ID, ":"); gsub(/ /, "", ID[2]); print ID[2] }' |
+				sort --numeric-sort --reverse | head -1 | egrep -- "^1[[:digit:]]{3}$" ||
+			printf "%s" "1099"
+	)
+	#
+	# ucs group identifier ( GID ) for Domain Admins
+	ucr set net/get/domain/gid/admins=$(
+		udm groups/group list --filter cn=Domain\ Admins >/dev/null 2>&1 &&
+			udm groups/group list --filter cn=Domain\ Admins 2>&1 |
+			awk '/^.*gidNumber\:/{ split($0, ID, ":"); gsub(/ /, "", ID[2]); printf ID[2] }' |
+				sort --numeric-sort --reverse | head -1 | egrep -- "^5[[:digit:]]{3}$" ||
+			printf "%s" "5000"
+	)
+	#
+	# ucs group identifier ( GID ) for Domain Users
+	ucr set net/get/domain/gid/users=$(
+		udm groups/group list --filter cn=Domain\ Users >/dev/null 2>&1 &&
+			udm groups/group list --filter cn=Domain\ Users 2>&1 |
+			awk '/^.*gidNumber\:/{ split($0, ID, ":"); gsub(/ /, "", ID[2]); printf ID[2] }' |
+				sort --numeric-sort --reverse | head -1 | egrep -- "^5[[:digit:]]{3}$" ||
+			printf "%s" "5001"
+	)
+	#
+	# ucs group identifier ( GID ) for Domain Guests
+	ucr set net/get/domain/gid/guests=$(
+		udm groups/group list --filter cn=Domain\ Guests >/dev/null 2>&1 &&
+			udm groups/group list --filter cn=Domain\ Guests 2>&1 |
+			awk '/^.*gidNumber\:/{ split($0, ID, ":"); gsub(/ /, "", ID[2]); printf ID[2] }' |
+				sort --numeric-sort --reverse | head -1 | egrep -- "^5[[:digit:]]{3}$" ||
+			printf "%s" "5002"
+	)
+	#
+	# ucs user identifier ( UID ) "{2000..????}"
+	ucr set net/get/domain/uid/max=$(
+		udm users/user list >/dev/null 2>&1 &&
+			udm users/user list 2>&1 |
+			awk '/^.*uidNumber\:/{ split($0, ID, ":"); gsub(/ /, "", ID[2]); print ID[2] }' |
+				sort --numeric-sort --reverse | head -1 | egrep -- "^2[[:digit:]]{3}$" ||
+			printf "%s" "2099"
+	)
+}
+
+## ucr shell
+eval "$(ucr shell hostname domainname ldap/base ldap/hostdn server/role)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+ucrcommit[postfix.secret]=/etc/listfilter.secret
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## Import LDAP Data Interchange Format (LDIF) for container mode environment
+#  only for Primary Directory Node ( legacy term: "master" )
+#
+share=/usr/local/share/univention-ldap
+#
+MachineSecret=${share}/machine.secret
+#
+LdapPath=/etc/ldap/slapd.d
+LdapConfig=/etc/ldap/slapd.conf
+LdapSecret=${share}/ldap.secret
+LdapBackup=${share}/ldap-backup.secret
+LdapBindDN="cn=admin,${ldap_base}"
+LdapUserID=Administrator
+#
+mountpoint --quiet ${share} || [[ -d ${share} ]] && [[ -f ${LdapConfig} ]] && univention-check-join-status 2>&1 |
+	egrep --quiet -- "^Joined successfully" && [[ "${server_role}" == "domaincontroller_master" ]] && {
+	#
+	# add some ucr temporary keys for LDIF import and only to use inside this script
+	#  ucr search --brief ^net/get/domain
+	#
+	NetSetDomainIDs
+	#
+	# find and import LDIF file(s) and try to add or modify the LDAP
+	#  ( with admin or backup account, maybe we have a new secret )
+	#  - by using ldapmodify -cv && continue the for loop
+	#  - by using ldapadd    -cv && continue the for loop
+	#  - by using slapadd    -cv ( -c, --continue and -v, --verbose )
+	#
+	for ldif in $(find ${share} -name *.ldif -type f 2>/dev/null | sort || /bin/true); do
+		#
+		# ldapmodify -cv && NetSetDomainIDs && continue
+		egrep --quiet -- changetype ${ldif} &&
+			LdapAddOrModify ${ldif} modify &&
+			NetSetDomainIDs && continue || /bin/true
+		#
+		# ldapadd    -cv && NetSetDomainIDs && continue
+		EGrepLdapAddExcludeAttributeFilter --quiet <${ldif} &&
+			LdapAddOrModify ${ldif} add &&
+			NetSetDomainIDs && continue || /bin/true
+		#
+		# slapadd    -cv ( stop/start or restart slapd )
+		EGrepLdapAddExcludeAttributeFilter --quiet <${ldif} || {
+			systemctl stop --force -- slapd.service &&
+				ucr filter <${ldif} | slapadd -cv -f ${LdapConfig} -F ${LdapPath}
+			systemctl start -- slapd.service || systemctl restart -- slapd.service ||
+				echo "Okay, Houston... I believe we've had a problem here."
+		}
+	done
+	#
+	# restart service unit(s) if a new ldap secret available
+	[[ -f ${LdapSecret} || -f ${LdapBackup} ]] && for service in slapd; do
+		systemctl restart -- ${service}.service >/dev/null 2>&1 || /bin/true
+	done
+	#
+	# take a break for univention listener/notifier ( each ldif 3 seconds )
+	sleep $(($(find ${share} -name *.ldif -type f 2>/dev/null | wc -l) * 3))
+	#
+	# try to import new ldap secret(s)
+	[[ -f ${LdapSecret} ]] && ldapsearch -LLL -D "cn=admin,${ldap_base}" -y ${LdapSecret} -s base && {
+		echo "$(date --utc +%FT%T.%3NZ): $(</etc/$(basename ${LdapSecret}))" >>/etc/$(basename ${LdapSecret}).old
+		tr --delete '\n' <${LdapSecret} > \
+			/etc/$(basename ${LdapSecret})
+	}
+	#
+	[[ -f ${LdapBackup} ]] && ldapsearch -LLL -D "cn=backup,${ldap_base}" -y ${LdapBackup} -s base && {
+		echo "$(date --utc +%FT%T.%3NZ): $(</etc/$(basename ${LdapBackup}))" >>/etc/$(basename ${LdapBackup}).old
+		tr --delete '\n' <${LdapBackup} > \
+			/etc/$(basename ${LdapBackup})
+	}
+	#
+	# restart service unit(s)
+	for service in slapd univention-directory-notifier univention-directory-listener; do
+		systemctl restart -- ${service}.service >/dev/null 2>&1 || /bin/true
+	done
+	#
+	# try to import a new machine secret
+	[[ -f ${MachineSecret} ]] && ldapsearch -LLL -D ${ldap_hostdn} -y ${MachineSecret} -s base && {
+		echo "$(date --utc +%FT%T.%3NZ): $(</etc/$(basename ${MachineSecret}))" >>/etc/$(basename ${MachineSecret}).old
+		tr --delete '\n' <${MachineSecret} > \
+			/etc/$(basename ${MachineSecret})
+	}
+	#
+	# clean up ucr temporary
+	#
+	NetSetDomainIDs clean
+}
+#
+## Import LDAP Data Interchange Format (LDIF) for container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	ldap_base \
+	ldap_hostdn \
+	server_role \
+	hostname domainname \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

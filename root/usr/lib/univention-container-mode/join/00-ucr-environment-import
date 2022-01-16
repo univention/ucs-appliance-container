@@ -59,7 +59,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 # <FILTER(UniventionConfigRegistryExcludeKeyFilter)>
 #
 UniventionConfigRegistryExcludeKeyFilter="^!.*$"
-UniventionConfigRegistryExcludeKeyFilter="^(rootpw|sshkey|dcname|dcuser|dcpass|language|encoding|timezone|role|license|nameserver|forwarder|domainname|hostname|registry|install|container|certificates|credentials)$"
+UniventionConfigRegistryExcludeKeyFilter="^(rootpw|sshkey|dcname|dcuser|dcpass|dcwait|language|encoding|timezone|role|license|nameserver|forwarder|domainname|hostname|registry|install|container|certificates|credentials)$"
 #
 env | awk '\
 	/^[a-z]/{ \

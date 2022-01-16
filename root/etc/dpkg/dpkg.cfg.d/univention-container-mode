@@ -1,0 +1,30 @@
+# https://github.com/debuerreotype/debuerreotype ( --slimify )
+#  docker run --rm debian:10-slim cat /etc/dpkg/dpkg.cfg.d/docker
+#
+#  this file will patched with language support from
+#   /usr/lib/univention-container-mode/*/00-aA-DEPENDENCIES-Aa-00
+#    >> "path-include /usr/share/locale/${language/_*/}*"
+#
+
+# systemd based system
+path-exclude /etc/rc*d/*
+
+path-exclude /usr/share/doc/*
+path-exclude /usr/share/info/*
+path-exclude /usr/share/linda/*
+path-exclude /usr/share/lintian/overrides/*
+path-exclude /usr/share/locale/*
+path-exclude /usr/share/man/*
+path-exclude /usr/share/omf/*/*-*.emf
+
+path-include /usr/share/doc/*/copyright
+path-include /usr/share/doc/*/changelog.Debian.gz
+path-include /usr/share/locale/*/*/univention*.mo
+path-include /usr/share/locale/all_languages
+path-include /usr/share/locale/currency/*
+path-include /usr/share/locale/l10n/*
+path-include /usr/share/locale/languages
+path-include /usr/share/locale/locale.alias
+path-include /usr/share/omf/*/*-C.emf
+
+path-include /usr/share/locale/en*

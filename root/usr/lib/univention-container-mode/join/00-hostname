@@ -71,7 +71,6 @@ UniventionConfigCommit ${ucrcommit[@]}
 
 ## cleanup
 unset \
-	hostname \
 	ucrchanges ucrremoves ucrcounter ucrcommit
 
 debug "### CLEAN SCRIPT($(pwd)/$0) ###"

@@ -66,7 +66,7 @@ for version in ${network[@]}; do
 	network[interface]=$(echo ${network[routelist]} | awk '/^default/{ for (I=1;I<=NF;I++) if ( $I=="dev" ) { print $(I+1) } }')
 	network[gateway]=$(echo ${network[routelist]} | awk '  /^default/{ for (I=1;I<=NF;I++) if ( $I=="dev" ) { print $(I-1) } }')
 	[[ -z ${network[interface]:-} ]] || {
-		network[addresses]=$(ip -${version} address show scope global dev ${network[interface]} | egrep "^*inet") # inet* <address>/<cidr> [brd <broadcast>] scope global <interface>
+		network[addresses]=$(ip -${version} address show scope global dev ${network[interface]} | egrep -- "^*inet") # inet* <address>/<cidr> [brd <broadcast>] scope global <interface>
 		network[broadcast]=$(echo ${network[addresses]} | awk '/inet.*brd/{ for (I=1;I<=NF;I++) if ( $I=="brd" ) { print $(I+1) } }')
 		network[address]=$(echo ${network[addresses]} | awk '/inet/{ split($2,IP,"/"); printf IP[1] }') # get only first match in awk by $2
 		network[cidr]=$(echo ${network[addresses]} | awk '   /inet/{ split($2,IP,"/"); printf IP[2] }') # get only first match in awk by $2
@@ -113,6 +113,9 @@ for version in ${network[@]}; do
 	}
 	#
 done
+#
+[[ -f /etc/default/networking ]] &&
+	sed -i 's/^#CONFIGURE_INTERFACES=yes/CONFIGURE_INTERFACES=no/g' /etc/default/networking
 #
 ## Set network config from container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"

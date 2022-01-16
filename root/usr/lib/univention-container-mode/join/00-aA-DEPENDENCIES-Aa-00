@@ -1,0 +1,183 @@
+#!/bin/bash
+#
+# Univention Container Mode - install dependencies
+#
+# Copyright 2020-2021 Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+# eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+ucrcounter[nameserver]=1
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+ucrcommit[resolv.conf]=/etc/resolv.conf
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## install dependencies for container mode environment
+#
+# get minimal nameserver config from resolv.conf
+for ns in $(sed -rn 's/^nameserver[\t ]+([^\t ]+)/\1/p' ${ucrcommit[resolv.conf]}); do
+	[[ ${ucrcounter[nameserver]} > 3 ]] && break
+	ucrchanges+=("nameserver${ucrcounter[nameserver]}=${ns}")
+	ucrcounter[nameserver]=$((${ucrcounter[nameserver]} + 1))
+done
+#
+# update package cache from /etc/apt/sources.list
+UniventionDistUpdate
+#
+# slimify from debootstrap ( no man pages, no locales, no ... )
+conf=/etc/dpkg/dpkg.cfg.d/univention-container-mode
+[[ -f ${conf} ]] && {
+	# add language including to locales ... ${locale/_*/}
+	[[ ${language:-en_US} =~ ^en_US$ ]] || {
+		locale=${language:-en_US}
+		printf "%s" ${locale/_*/} | egrep --quiet -- "^[a-z]{2}$" &&
+			[[ ${locale/_*/} =~ ^en$ ]] || {
+			echo "path-include /usr/share/locale/${locale/_*/}*" >> \
+				${conf}
+		}
+	}
+	# reinstall all packages excluded systemd and be sure we have the new ${locale/_*/}
+	#  ( dpkg ... --no-pager and apt-get reinstall since UCS 5.0-0 )
+	(dpkg-query --list --no-pager 2>/dev/null || dpkg-query --list 2>/dev/null || /bin/true) |
+		awk '/^ii/{ gsub(/\:amd64/,"",$2); print $2 }' |
+		egrep --invert-match -- "^systemd$" |
+		xargs --no-run-if-empty \
+			apt-get --verbose-versions --assume-yes reinstall -- 2>/dev/null || {
+		(dpkg-query --list --no-pager 2>/dev/null || dpkg-query --list 2>/dev/null || /bin/true) |
+			awk '/^ii/{ gsub(/\:amd64/,"",$2); print $2 }' |
+			egrep --invert-match -- "^systemd$" |
+			xargs --no-run-if-empty \
+				apt-get --verbose-versions --assume-yes --reinstall install -- || /bin/true
+	}
+}
+#
+systemctl daemon-reload && systemd --version
+#
+# ModuleNotFoundError: No module named 'sp'
+apt-get --verbose-versions --assume-yes --no-install-recommends install python-subprocess32 \
+	>/dev/null 2>&1 || /bin/true
+#
+# ModuleNotFoundError: No module named 'distutils.spawn'
+apt-get --verbose-versions --assume-yes --no-install-recommends install python3-distutils \
+	>/dev/null 2>&1 || /bin/true
+#
+# install base dependencies
+UniventionInstall \
+	univention-base-files \
+	univention-base-packages
+#
+# commit nameserver changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+#
+# set repository online mirror url
+#  default(https://updates.software-univention.de/)
+[[ -f /etc/apt/mirror.url ]] &&
+	univention-config-registry set repository/online/server=$(tr --delete '\n' </etc/apt/mirror.url)
+rm -f /etc/apt/mirror.url
+#
+# install univention-updater ( errata level )
+UniventionInstall \
+	univention-updater
+#
+# force disabling chfn and mandb ( Dockerfile )
+#  Creating new user ... PAM: System error
+ln --symbolic --force /bin/true /bin/chfn
+ln --symbolic --force /bin/true /usr/bin/chfn
+ln --symbolic --force /bin/true /usr/local/bin/chfn
+#  Processing triggers for man-db ...
+ln --symbolic --force /bin/true /bin/mandb
+ln --symbolic --force /bin/true /usr/bin/mandb
+ln --symbolic --force /bin/true /usr/local/bin/mandb
+#
+# force cleanup target wants ( same as Dockerfile )
+rm --force --verbose \
+	/etc/rc*.d/* \
+	/etc/systemd/system/*.wants/* \
+	/lib/systemd/system/multi-user.target.wants/* \
+	/lib/systemd/system/systemd-update-utmp* \
+	/lib/systemd/system/local-fs.target.wants/* \
+	/lib/systemd/system/sockets.target.wants/*udev* \
+	/lib/systemd/system/sockets.target.wants/*initctl* \
+	/lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup*
+#
+systemctl daemon-reload
+#
+# fix missing multi-user target wants ( Dockerfile )
+systemctl enable -- \
+	univention-container-mode-environment.service \
+	univention-container-mode-firstboot.service \
+	univention-container-mode-recreate.service \
+	univention-container-mode-storage.service \
+	univention-container-mode-backup.service \
+	univention-container-mode-joined.service \
+	univention-container-mode-fixes.service \
+	univention-container-mode-init.service
+#
+systemctl enable -- \
+	univention-directory-listener.service || /bin/true
+#
+# don't mask tmp.mount for UCS >= 5.0-0
+dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) ge 5.0.0 &&
+	systemctl unmask -- \
+		tmp.mount
+#
+## check dependencies for container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

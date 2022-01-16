@@ -56,30 +56,23 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 ## Setup post force join and cleanup in container mode environment
 #
 # check for temporary certificate(s)
-univention-config-registry get apache2/ssl/ca | egrep --quiet "^/var/cache/univention-system-setup" &&
+univention-config-registry get apache2/ssl/ca | egrep --quiet -- "^/var/cache/univention-system-setup" &&
 	univention-config-registry unset \
 		apache2/ssl/certificate \
 		apache2/ssl/key \
 		apache2/ssl/ca
 #
-# check join status and run force join scripts if needed
-univention-check-join-status 2>&1 | egrep --quiet "^Joined successfully" || {
-	[[ "${server_role}" == "domaincontroller_master" ]] && {
-		univention-run-join-scripts --force
-	}
-	[[ "${server_role}" != "domaincontroller_master" ]] && {
-		[[ ${#dcuser} -eq 0 && ${#dcpass} -eq 0 ]] ||
-			univention-run-join-scripts --force \
-				-dcaccount ${dcuser:-} \
-				-dcpwd <(echo -n ${dcpass:-})
-	}
-}
+# check join status and run join scripts if needed
+UniventionCheckJoinStatus
 #
-# check join status and cleanup
-univention-check-join-status 2>&1 | egrep --quiet "^Joined successfully" && {
+# check join status and cleanup container mode environment
+#  => ( test kerberos with machine secret )
+#  => ( link, verify and show certificate )
+#
+univention-check-join-status 2>&1 | egrep --quiet -- "^Joined successfully" && {
 	#
-	# init kerberos on local machine
-	kinit --password-file=/etc/machine.secret ${hostname}\$@$(ucr get kerberos/realm) || /bin/true
+	# init, list and destroy kerberos for local machine
+	kinit --password-file=/etc/machine.secret ${hostname}\$@$(ucr get kerberos/realm) && klist && kdestroy || /bin/true
 	#
 	# set force symbolic link ucs-root-ca.crt and ucsCA.crl for http(s) server
 	rm --force --verbose /var/www/ucs-root-ca.crt /var/www/ucsCA.crl && {
@@ -104,8 +97,8 @@ univention-check-join-status 2>&1 | egrep --quiet "^Joined successfully" && {
 				/etc/univention/ssl/ucsCA/CAcert.pem || /bin/true
 	}
 	#
-	# verify and show host certificate(s)
-	for cert in ${hostname} ucs-sso; do
+	# verify and show local certificate(s)
+	for cert in $(find /etc/univention/ssl -maxdepth 1 -type l -exec basename {} \;) ucs-sso; do
 		openssl verify /etc/univention/ssl/${cert}.${domainname}/cert.pem &&
 			openssl x509 -noout -text -in \
 				/etc/univention/ssl/${cert}.${domainname}/cert.pem || /bin/true
@@ -122,6 +115,13 @@ univention-check-join-status 2>&1 | egrep --quiet "^Joined successfully" && {
 			--recursive \
 			--verbose \
 			/etc/univention/ssl
+		find \
+			/etc/univention/ssl \
+			-maxdepth 1 -type l \
+			-exec \
+			chown root:DC\ Backup\ Hosts \
+			--recursive \
+			--verbose {} \;
 		chmod g+rwX \
 			--recursive \
 			--verbose \

@@ -1,0 +1,89 @@
+#!/bin/bash
+#
+# Univention OpenLDAP standalone server (Lightweight Directory Access Protocol)
+#  -- check-subschema-hash --
+#
+# Copyright 2020-2021 Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+ucr=univention-config-registry
+
+command -v ${ucr} >/dev/null 2>&1 || {
+	echo "MISSING COMMAND(${ucr}) ... exit(1)" && exit 1
+}
+
+[[ $(${ucr} get ldap/server/type) =~ ^master$ ]] || exit 0
+
+TempFile=$(mktemp)
+
+couter=1
+repeat=20
+
+subschema="ldapsearch -x -H ldapi:/// -s base -b cn=Subschema 'objectClass=subschema' objectClasses attributeTypes matchingRules matchingRuleUse dITStructureRules dITContentRules nameForms ldapSyntaxes"
+
+printf "%s" "${subschema} .."
+while timeout 5 ${subschema} >${TempFile} 2>/dev/null; do
+	[[ ${couter} -ge ${repeat} ]] && printf "%s" "\nTIMEOUT(${subschema}) ... exit(1)\n" && exit 1
+	couter=$((${couter} + 1))
+	printf "%c" "." && sleep 3
+done
+printf ".\n"
+
+MDFile=/var/lib/univention-ldap/schema/md5
+IDFile=/var/lib/univention-ldap/schema/id/id
+
+mkdir --parents $(dirname ${IDFile})
+touch \
+	${MDFile} \
+	${IDFile}
+
+OldSum=$(<${MDFile})
+NewSum=$(md5sum <${TempFile} | awk '{ printf $1 }')
+
+NextID=$(($(<${IDFile}) + 1))
+
+[[ "${NewSum}" != "${OldSum}" ]] && {
+	echo ${NewSum} >${MDFile}
+	echo ${NextID} >${IDFile}
+}
+
+chown listener ${IDFile}
+
+if [[ $(${ucr} get ldap/schema/export) =~ ^(yes|true)$ ]]; then
+	# ${ucr} search ^ldap/schema/export ( missing description ??? )
+	mv --force --verbose ${TempFile} /var/www/ldap-schema.txt &&
+		chmod a+r /var/www/ldap-schema.txt
+else
+	rm --force ${TempFile}
+fi
+
+[[ -e /var/lib/univention-directory-replication/failed.ldif ]] && {
+	[[ -x /usr/sbin/univention-directory-replication-resync ]] &&
+		/usr/sbin/univention-directory-replication-resync /var/lib/univention-directory-replication/failed.ldif || exit 1
+}
+
+exit 0

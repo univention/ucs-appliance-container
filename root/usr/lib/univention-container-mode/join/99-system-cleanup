@@ -56,10 +56,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 ## system cleanup for container mode environment
 #
 # clean default backup(s) from install
-find /etc \
-	-type f \
-	-name "*.debian" \
-	-exec rm --force --verbose {} \;
+UniventionInstallCleanUp
 #
 # clean ssl certificate backup(s) from install
 find /etc/univention \
@@ -73,6 +70,17 @@ find /etc/univention \
 	-name "ssl_*" \
 	-exec rm --force --recursive --verbose {} \;
 #
+# clean kernel symbolic link from install
+for name in "initrd.img" "vmlinuz" "install"; do
+	find / \
+		-maxdepth 1 \
+		-type l \
+		-name "*${name}*" \
+		-exec rm --force --verbose {} \;
+done
+# clean grub boot stuf from install
+#
+rm --force --recursive --verbose /boot/*
 # clean systemd service unit file(s)
 for unit in univention-welcome-screen; do
 	find /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system \
@@ -81,26 +89,51 @@ for unit in univention-welcome-screen; do
 		-exec rm --force --verbose {} \;
 done
 #
+# clean man, doc and locale
+find /usr/share/{man,doc,locale} \
+	-depth \
+	-empty \
+	-delete
+#
 # reload systemd daemon
 systemctl daemon-reload
 #
 # enable and start default service unit(s)
-for service in atd bind9 cron nscd rsyslog slapd; do
+for service in atd bind9 cron nscd postfix rsync rsyslog slapd ssh stunnel4; do
 	systemctl enable -- ${service}.service || /bin/true
 	systemctl start -- ${service}.service || /bin/true
+done
+#
+# enable default timer
+for service in apt-daily apt-daily-upgrade logrotate phpsessionclean; do
+	systemctl enable -- ${service}.timer || /bin/true
+done
+#
+# enable univention service unit(s)
+for service in $(find /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system -type f -name univention*service -exec basename {} \;); do
+	echo ${service} | egrep --quiet --invert-match -- "^(univention-container-mode|univention-welcome-screen|.*@.service$)" && {
+		systemctl enable -- ${service} 2>/dev/null || /bin/true
+	}
+done
+#
+# start exited unit(s)
+for unit in service; do
+	for stat in start; do
+		systemctl list-units --no-pager --no-legend --state exited --type ${unit} | awk '/[a-z].*exited/{ print $1 }' | xargs --no-run-if-empty systemctl ${stat} -- 2>&1 || /bin/true
+	done
 done
 #
 # start/restart/disable failed unit(s)
 for unit in service socket; do
 	for stat in start restart disable; do
-		systemctl list-units --plain --state failed --type ${unit} | awk '/[a-z].*failed/{ print $1 }' | xargs --no-run-if-empty systemctl ${stat} -- 2>&1 || /bin/true
+		systemctl list-units --no-pager --no-legend --state failed --type ${unit} | awk '/[a-z].*failed/{ print $1 }' | xargs --no-run-if-empty systemctl ${stat} -- 2>&1 || /bin/true
 	done
 done
 #
 # mask failed mount unit(s)
 for unit in mount; do
 	for stat in mask; do
-		systemctl list-units --plain --state failed --type ${unit} | awk '/[a-z].*failed/{ print $1 }' | xargs --no-run-if-empty systemctl ${stat} -- 2>&1 || /bin/true
+		systemctl list-units --no-pager --no-legend --state failed --type ${unit} | awk '/[a-z].*failed/{ print $1 }' | xargs --no-run-if-empty systemctl ${stat} -- 2>&1 || /bin/true
 	done
 done
 #

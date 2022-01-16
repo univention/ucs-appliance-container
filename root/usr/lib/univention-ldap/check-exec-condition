@@ -1,0 +1,63 @@
+#!/bin/bash
+#
+# Univention OpenLDAP standalone server (Lightweight Directory Access Protocol)
+#  -- check-exec-condition --
+#
+# Copyright 2020-2021 Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+ucr=univention-config-registry
+
+command -v ${ucr} >/dev/null 2>&1 || {
+	echo "MISSING COMMAND(${ucr}) ... exit(1)" && exit 1
+}
+
+[[ $(${ucr} get ldap/autostart) =~ ^(no|disabled)$ ]] && exit 1
+
+# https://www.openldap.org/doc/
+case $(${ucr} get ldap/database/type) in
+bdb | hdb) {
+	echo "Deprecated backend($(${ucr} get ldap/database/type)) since OpenLDAP 2.4 https://www.openldap.org/doc/admin24/slapdconf2.html#Backend-specific%20Directives"
+	exit 1
+} ;;
+esac
+
+cat <<EOF >/etc/default/slapd
+# This file is auto-generated from ${0} and will regenerated on each slapd.service start/restart
+#
+URIS='ldapi:///$(
+	${ucr} get slapd/port |
+		awk -v LDAP=ldap '{  gsub(/\s/,"",$0); split($0,PORT,","); for(i=1;PORT[i]!="";i++){ printf " %s://:%s/", LDAP, PORT[i] } }'
+)$(
+	${ucr} get slapd/port/ldaps |
+		awk -v LDAP=ldaps '{ gsub(/\s/,"",$0); split($0,PORT,","); for(i=1;PORT[i]!="";i++){ printf " %s://:%s/", LDAP, PORT[i] } }'
+)'
+#
+# This file is auto-generated from ${0} and will regenerated on each slapd.service start/restart
+EOF
+
+exit 0

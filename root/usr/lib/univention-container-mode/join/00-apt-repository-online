@@ -55,33 +55,34 @@ declare -A ucrcommit
 debug "### START SCRIPT($(pwd)/$0) ###"
 ## performe system upgrade for container mode environment
 #
-# reset repository online
-univention-config-registry set repository/online=false
-rm --force --verbose /etc/apt/sources.list.d/*
-# univention-config-registry set repository/online=true
-while ! timeout 45 univention-config-registry set repository/online=true &&
-	egrep --silent --recursive --invert-match -- Traceback /etc/apt/sources.*; do
-	sleep 15 && univention-config-registry set repository/online=false
-done
+# reset repository online ( ucr set repository/online=true )
+#  and clean default /etc/apt/sources.list from debootstrap
+UniventionResetRepositoryOnline && echo > \
+	/etc/apt/sources.list
 #
-# clean default source.list from debootstrap
-[[ -f /etc/apt/sources.list ]] && {
-	egrep --silent --recursive -- Traceback /etc/apt/sources.* ||
-		echo >/etc/apt/sources.list
-}
-#
-# don't clean external packages cache
-mountpoint /var/cache/apt/archives >/dev/null 2>&1 || {
+# don't clean external package cache
+mountpoint --quiet /var/cache/apt/archives >/dev/null 2>&1 || {
 	apt-get autoclean >/dev/null 2>&1
 	apt-get clean >/dev/null 2>&1
 }
 #
-# run first system update
+# run system update
 UniventionDistUpdate
 #
-# run first system dist-upgrade
+# run system dist-upgrade
 UniventionDistUpgrade
+#
+# check repository online sources after dist-upgrade
+egrep --quiet --recursive -- Traceback /etc/apt/sources.* && {
+	UniventionResetRepositoryOnline && echo > \
+		/etc/apt/sources.list
+	UniventionDistUpdate
+}
+#
+# rebuild package index
 apt-cache search . >/dev/null 2>&1
+#
+# autoremove package(s)
 apt-get autoremove --assume-yes >/dev/null 2>&1
 #
 ## performe system upgrade for container mode environment

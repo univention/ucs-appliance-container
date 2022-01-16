@@ -59,12 +59,9 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 [[ -z ${install:-} ]] || {
 	json=jq
 
-	which ${json} >/dev/null 2>&1 || {
-		apt-get --verbose-versions --assume-yes --no-install-recommends install ${json}
-		apt-mark auto ${json}
-	}
+	command -v ${json} >/dev/null 2>&1 || UniventionInstallNoRecommends ${json}
 
-	which ${json} >/dev/null 2>&1 && {
+	command -v ${json} && {
 		JSON="${json} --raw-output"
 		echo ${install} | ${JSON} 'keys | .[]' >/dev/null 2>&1 && {
 			for key in $(echo ${install} | ${JSON} 'keys | .[]'); do
@@ -76,7 +73,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 				} ;;
 				remove) { # set valied package(s) to auto install
 					for package in $(echo ${install} | ${JSON} '."remove"[]'); do
-						apt-cache search ${package} | egrep --silent "^${package}" &&
+						apt-cache search ${package} | egrep --quiet -- "^${package}" &&
 							apt-mark auto ${package} >/dev/null 2>&1 || /bin/true
 					done
 				} ;;
@@ -87,12 +84,12 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 							app=$(echo ${package} | sed 's/^univention\-//g')
 							UniventionAddApp ${app} || /bin/true
 							# univention-app-name vs appname
-							echo ${app} | egrep --silent -- "-" && {
+							echo ${app} | egrep --quiet -- "-" && {
 								app=$(echo ${app} | sed 's/\-//g')
 								UniventionAddApp ${app} || /bin/true
 							}
 						}
-						apt-cache search ${package} | egrep --silent "^${package}" &&
+						apt-cache search ${package} | egrep --quiet -- "^${package}" &&
 							UniventionInstall ${package} || /bin/true
 					done
 				} ;;

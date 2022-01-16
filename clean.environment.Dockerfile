@@ -20,8 +20,8 @@ LABEL maintainer="Univention GmbH <container@univention.de>" \
   org.label-schema.vendor="Univention GmbH" \
   org.label-schema.version="1.0.0-dev" \
   org.label-schema.schema-version="1.0" \
-  org.label-schema.docker.cmd="docker run --detach --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:ro --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp --restart unless-stopped --hostname ${CONTAINER} --name ${CONTAINER} ${CONTAINER}:${TAG}" \
-  org.label-schema.docker.cmd.devel="docker run --env DEBUG=TRUE --detach --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:ro --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp --restart unless-stopped --hostname ${CONTAINER} --name ${CONTAINER} ${CONTAINER}:${TAG}" \
+  org.label-schema.docker.cmd="docker run --detach --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:ro --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp:exec --restart unless-stopped --hostname ${CONTAINER} --name ${CONTAINER} ${CONTAINER}:${TAG}" \
+  org.label-schema.docker.cmd.devel="docker run --env DEBUG=TRUE --detach --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:ro --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp:exec --restart unless-stopped --hostname ${CONTAINER} --name ${CONTAINER} ${CONTAINER}:${TAG}" \
   org.label-schema.docker.build.from=${COMMENT}
 
 ENV container docker

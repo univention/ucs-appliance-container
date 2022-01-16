@@ -55,9 +55,9 @@ declare -A ucrcommit
 debug "### START SCRIPT($(pwd)/$0) ###"
 ## NFS server for container mode environment
 #
-mount -t nfsd nfsd /proc/fs/nfsd >/dev/null 2>&1 || /bin/true && {
+mount -t nfsd nfsd /proc/fs/nfsd >/dev/null 2>&1 || mountpoint --quiet /proc/fs/nfsd && {
 	for i in unmask enable start; do
-		systemctl ${i} -- nfs-server.service || /bin/true
+		systemctl ${i} -- run-rpc_pipefs.mount rpc-gssd.service nfs-server.service || /bin/true
 	done
 }
 #

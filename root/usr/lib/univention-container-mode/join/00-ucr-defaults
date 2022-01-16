@@ -62,10 +62,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 # mawk vs gawk, fix regular expressions
 awk=gawk
 #
-which ${awk} >/dev/null 2>&1 || {
-	apt-get --verbose-versions --assume-yes --no-install-recommends install ${awk}
-	apt-mark auto ${awk}
-}
+command -v ${awk} >/dev/null 2>&1 || UniventionInstallNoRecommends ${awk}
 #
 # set locale
 [[ ${language:-en_US} =~ ^en_US$ ]] && ucrchanges+=("locale=${language:-en_US}.${encoding:-UTF-8}:${encoding:-UTF-8}")
@@ -140,6 +137,13 @@ ucrchanges+=("ssl/default/hashfunction=sha$(((${ucrcounter[times]} + 0) * 128))"
 # set ssl/host/extensions ( openssl x509v3 subjectAltName, authorityInfoAccess and crlDistributionPoints )
 ucrchanges+=("ssl/host/extensions=/usr/local/share/univention-ssl/extension.sh")
 #
+# set mail/alias/ssl ( minimal postfix config for ssl@${domainname} )
+ucrchanges+=("mail/alias/ssl=root")
+#
+# set mail/postfix/inet/{interfaces,protocols}
+ucrchanges+=("mail/postfix/inet/interfaces=all")
+ucrchanges+=("mail/postfix/inet/protocols=all")
+#
 # set ldap/base
 ucrchanges+=("ldap/base=$(
 	echo ${domainname} | awk '\
@@ -164,7 +168,7 @@ ucrchanges+=("windows/domain=$(
 # ucrchanges+=("machine/password/length=$(((${ucrcounter[times]} + 0) * 16))")
 #
 # mawk vs gawk, fix regular expressions
-which ${awk} >/dev/null 2>&1 && {
+command -v ${awk} && {
 	apt-get --assume-yes remove ${awk}
 	apt-get --assume-yes autoremove
 }

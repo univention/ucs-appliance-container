@@ -38,7 +38,7 @@ source /usr/lib/univention-container-mode/utils.sh || exit 1
 # }
 
 ## ucr shell
-eval "$(ucr shell hostname domainname server/role ldap/base)"
+eval "$(ucr shell hostname domainname server/role ldap/master)"
 
 ## declare
 declare -a ucrchanges
@@ -51,6 +51,7 @@ declare -A ucrcounter
 
 declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+ucrcommit[source.list]=/etc/apt/sources.list.d/*
 ucrcommit[resolv.conf]=/etc/resolv.conf
 
 debug "### START SCRIPT($(pwd)/$0) ###"
@@ -64,14 +65,22 @@ FallBackLocalhost=("::1" "127.0.0.1" "127.0.1.1")
 # fallback resolver
 FallBackResolver=("1.1.1.1" "8.8.8.8" "9.9.9.9")
 #
-# check all nameserver dig @nameserver host +short
+# check all nameserver dig @nameserver host +short and validate ldap master too
 NS=FALSE
 for i in {1..3}; do
-	[[ -z $(ucr get nameserver${i}) ]] || {
-		ping -c 3 -W 3 $(ucr get nameserver${i}) >/dev/null 2>&1 || /bin/true && {
-			dig \
-				@$(ucr get nameserver${i}) \
-				${UniventionSystemRepositoryHostname} +short >/dev/null 2>&1 && NS=TRUE || /bin/true
+	ns=$(ucr get nameserver${i})
+	[[ -z ${ns} ]] || {
+		ping -c 3 -W 3 ${ns} >/dev/null 2>&1 || /bin/true && {
+			# check ldap master ( lan )
+			timeout 3 \
+				dig @${ns} ${ldap_master} +short | egrep --quiet -- "^[a-f0-9]" &&
+				NS=TRUE || ucr set nameserver${i}=$(
+				dig ${ldap_master} aaaa ${ldap_master} a +short | head -1
+			)
+			# check repository  ( wan )
+			timeout 3 \
+				dig @${ns} ${UniventionSystemRepositoryHostname} +short | egrep --quiet -- "^[a-f0-9]" &&
+				NS=TRUE || /bin/true
 		}
 	}
 done
@@ -79,20 +88,22 @@ done
 # check all dns/forwarder dig @dns/forwarder host +short
 FW=FALSE
 for i in {1..3}; do
-	[[ -z $(ucr get dns/forwarder${i}) ]] || {
-		ping -c 3 -W 3 $(ucr get dns/forwarder${i}) >/dev/null 2>&1 || /bin/true && {
-			dig \
-				@$(ucr get dns/forwarder${i}) \
-				${UniventionSystemRepositoryHostname} +short >/dev/null 2>&1 && FW=TRUE || /bin/true
+	fw=$(ucr get dns/forwarder${i})
+	[[ -z ${fw} ]] || {
+		ping -c 3 -W 3 ${fw} >/dev/null 2>&1 || /bin/true && {
+			# check repository  ( wan )
+			timeout 3 \
+				dig @${fw} ${UniventionSystemRepositoryHostname} +short | egrep --quiet -- "^[a-f0-9]" &&
+				FW=TRUE || /bin/true
 		}
 	}
 done
 #
 # check domain-name-service
-dig ${UniventionSystemRepositoryHostname} +short >/dev/null 2>&1 || {
+dig ${UniventionSystemRepositoryHostname} +short | egrep --quiet -- "^[a-f0-9]" || {
 	[[ ${NS} =~ ^TRUE$ ]] && univention-config-registry commit /etc/resolv.conf
 	[[ ${FW} =~ ^FALSE$ ]] && {
-		dig ${UniventionSystemRepositoryHostname} +short >/dev/null 2>&1 ||
+		dig ${UniventionSystemRepositoryHostname} +short | egrep --quiet -- "^[a-f0-9]" ||
 			univention-config-registry set \
 				"nameserver1=${FallBackLocalhost[0]}" "nameserver2=${FallBackLocalhost[1]}" "nameserver3=${FallBackLocalhost[2]}" \
 				"dns/forwarder1=${FallBackResolver[0]}" "dns/forwarder2=${FallBackResolver[1]}" "dns/forwarder3=${FallBackResolver[2]}"
@@ -127,6 +138,8 @@ UniventionConfigCommit ${ucrcommit[@]}
 
 ## cleanup
 unset \
+	ldap_master \
+	server_role \
 	hostname domainname \
 	ucrchanges ucrremoves ucrcounter ucrcommit
 

@@ -1,0 +1,339 @@
+#!/bin/bash
+#
+# Univention Container Mode - setup-restore
+#
+# Copyright 2020-2021 Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+function LdapValidateSecrets() { # LdapValidateSecrets: (${@})[>return ${?}]
+	local restore=${1:-/var/backups/univention-container-mode/secrets}
+	local base=$(ucr get ldap/base)
+	local exit=0
+
+	for directory in /etc ${restore}; do
+		[[ -d ${directory} ]] || continue &&
+			for user in admin backup; do
+				secret=$([[ ${user} =~ ^admin$ ]] && printf "${directory}/ldap.secret" || printf "${directory}/ldap-backup.secret")
+				[[ -f ${secret} ]] && ldapsearch -LLL -D "cn=${user},${base}" -y ${secret} -s base >/dev/null 2>&1 && continue ||
+					exit=${?}
+			done
+	done
+
+	return ${exit}
+}
+
+function LdapSetSecrets() { # LdapSetSecrets: (${@})[>return ${?}]
+	local restore=${1:-/var/backups/univention-container-mode/secrets}
+	local base=$(ucr get ldap/base)
+	local hash=$(ucr get password/hashing/method)
+	local MaPC=$(ucr get machine/password/complexity)
+	local MaPL=$(ucr get machine/password/length)
+	local exit=0
+
+	for directory in /etc; do
+		[[ -d ${directory} ]] || continue &&
+			for user in admin backup; do
+				secret=$([[ ${user} =~ ^admin$ ]] && printf "${directory}/ldap.secret" || printf "${directory}/ldap-backup.secret")
+				[[ -f ${secret} ]] || tr --delete "\n" </${restore}/$(basename ${secret}) >${secret} && {
+					ldapsearch -LLL -D "cn=${user},${base}" -y ${secret} -s base >/dev/null 2>&1 && continue || (
+						[[ $(stat --printf="%s" ${secret} 2>/dev/null || printf 0) -gt 0 ]] || (
+							pwgen -1 -${MaPC:-scn} ${MaPL:-32} | tr --delete "\n" >${secret}
+						) && {
+							(ldapmodify -D "cn=admin,${base}" -y /etc/ldap.secret || ldapmodify -D "cn=backup,${base}" -y /etc/ldap-backup.secret) <<EOF
+dn: cn=${user},${base}
+changetype: modify
+replace: userPassword
+userPassword: {crypt}$(mkpasswd --hash=${hash:-SHA-512} --stdin <${secret})
+EOF
+						}
+					) || exit=${?}
+				}
+			done
+	done
+
+	return ${exit}
+}
+
+## ucr shell
+eval "$(ucr shell hostname domainname ldap/base ldap/hostdn kerberos/realm machine/password/complexity machine/password/length)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+ucrcommit[postfix.secret]=/etc/listfilter.secret
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## restore container mode environment
+#
+restore=/var/backups/univention-container-mode
+#
+MachineSecret=${restore}/secrets/machine.secret
+#
+LdapPath=/etc/ldap/slapd.d
+LdapConfig=/etc/ldap/slapd.conf
+LdapDatabase=/var/lib/univention-ldap/ldap
+LdapTranslog=/var/lib/univention-ldap/translog
+#
+SambaPath=/var/lib/samba
+#
+LdapSecret=${restore}/secrets/ldap.secret
+LdapBackup=${restore}/secrets/ldap-backup.secret
+LdapSearch=${restore}/ldap/ldapsearch.ldif
+LdapSchema=${restore}/ldap/schema/local-schema
+#
+LdifConfig=${restore}/ldap/slapcat.config.ldif
+LdifDatabase=${restore}/ldap/slapcat.database.ldif
+LdifTranslog=${restore}/ldap/slapcat.translog.ldif
+#
+InstallIndex=/usr/lib/univention-install/.index.txt
+#
+services=(cron slapd univention-directory-notifier univention-directory-listener samba)
+#
+openldap=openldap
+#
+rsync=rsync
+tar=tar
+
+command -v ${rsync} >/dev/null 2>&1 || UniventionInstallNoRecommends ${rsync}
+command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
+
+#
+# restore only if we have a vaild backup ( join/99-system-restore-initialize )
+[[ -f ${restore}/restore ]] && [[ -d ${restore}/ldap ]] && command -v ${rsync} && command -v ${tar} && {
+	RSYNC="${rsync} --archive --verbose --delete"
+	TAR="${tar} --extract --overwrite --verbose"
+	#
+	# restore app dependencies ( prepare a maximum to overwrite for known apps )
+	for app in $(
+		awk '/^appcenter\/apps\/.*\/status.*installed$/{ split($1,APP,"/"); print APP[3] }' ${restore}/registry/base*conf 2>/dev/null
+	); do
+		[[ ${app} =~ ^(samba4|cups)$ ]] &&
+			UniventionAddApp ${app} 2>/dev/null && UniventionCheckJoinStatus || continue
+	done
+	#
+	# make sure samba stops too ( we have to start samba.service once )
+	[[ $(ucr get dns/backend) =~ ^samba ]] && systemctl start -- samba.service
+	#
+	# stop force service unit(s)
+	for service in ${services[@]}; do
+		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ^${service}.service || continue && {
+			systemctl stop --force -- ${service}.service
+			systemctl status --no-pager --no-legend -- ${service}.service || continue
+		}
+	done
+	#
+	# remove the old LDAP and set permissions
+	for dir in ${LdapDatabase} ${LdapTranslog}; do
+		rm --force --recursive ${dir} && mkdir --parents --verbose ${dir}
+		chown ${openldap}:${openldap} --recursive --verbose ${dir}
+	done
+	#
+	# remove listener cache
+	rm --recursive --force --verbose /var/lib/univention-directory-listener/*
+	#
+	# restore config from LDIF ( ignore "No dynamic config support for overlay" )
+	[[ -f ${LdifConfig} ]] &&
+		slapadd -cv -n 0 -f ${LdapConfig} -F ${LdapPath} -l ${LdifConfig} ||
+		${RSYNC} $(dirname ${LdifConfig})/etc/ldap /etc/ &&
+		chown ${openldap}:${openldap} --recursive --verbose ${LdapPath}
+	#
+	# restore database from LDIF
+	[[ -f ${LdifDatabase} ]] &&
+		slapadd -cv -n 1 -f ${LdapConfig} -F ${LdapPath} -l ${LdifDatabase} &&
+		univention-config-registry commit ${LdapDatabase}/DB_CONFIG &&
+		chown ${openldap}:${openldap} --recursive --verbose ${LdapDatabase}
+	#
+	# restore translog from LDIF
+	[[ -f ${LdifTranslog} ]] &&
+		slapadd -cv -n 2 -f ${LdapConfig} -F ${LdapPath} -l ${LdifTranslog} &&
+		univention-config-registry commit ${LdapTranslog}/DB_CONFIG &&
+		chown ${openldap}:${openldap} --recursive --verbose ${LdapTranslog}
+	#
+	# restore local schema
+	[[ -d ${LdapSchema} ]] &&
+		${RSYNC} ${LdapSchema} $(dirname ${LdapDatabase})/
+	#
+	# restore local secret(s)
+	[[ -d ${restore}/secrets ]] &&
+		find ${restore}/secrets -type f -name *.secret -exec /bin/bash -c 'secret={}; \
+			echo "$(date --utc +%FT%T.%3NZ): $(</etc/$(basename ${secret}))" >> \
+				/etc/$(basename ${secret}).old; \
+			tr --delete "\n" <${secret}>  \
+				/etc/$(basename ${secret}); \
+			touch --no-dereference        \
+				/etc/$(basename ${secret})' \;
+	#
+	# restore local keytab(s)
+	[[ -d ${restore}/secrets ]] &&
+		find ${restore}/secrets \
+			-type f \
+			-name keytab.xz \
+			-exec ${TAR} --directory=/ --file={} \;
+	#
+	# restore local connector(s) and samba if we have samba as backend
+	[[ $(ucr get dns/backend) =~ ^samba ]] && [[ -d ${restore}/samba ]] && {
+		[[ -d ${restore}/connectors ]] &&
+			${RSYNC} ${restore}/connectors/univention-connector /var/lib/
+
+		# restore samba config
+		[[ -d ${restore}/samba/etc ]] &&
+			${RSYNC} ${restore}/samba/etc/samba /etc/
+
+		# restore bind9 config ( ldap machine secret as bindpw )
+		[[ -d ${restore}/bind/etc ]] &&
+			${RSYNC} ${restore}/bind/etc/bind /etc/
+
+		# restore samba ( netlogon, private, sysvol, etc ... )
+		for dir in $(find /var/lib/samba -maxdepth 1 -type d); do
+			[[ ${dir} =~ (drivers|DriverStore|netlogon|printers|sysvol)$ ]] && {
+				${RSYNC} --acls ${restore}/samba/$(basename ${dir}) $(dirname ${dir})/
+			}
+		done
+
+		# cleanup samba caches and wins statics
+		find /var/{run,cache}/samba /var/lib/samba/wins.dat \
+			-type f \
+			-exec rm --force --verbose {} \;
+
+		# cleanup samba databases ( be sure to overwrite )
+		find ${SambaPath} \
+			-type f \
+			-regextype posix-egrep -regex ".*\.(l|t)db($|.bak$)" \
+			-exec rm --force --verbose {} \;
+
+		# restore samba databases
+		find ${restore}/samba \
+			-maxdepth 1 \
+			-type f \
+			-name *.databases.xz \
+			-exec ${TAR} --directory=/ --file={} \;
+
+		# restore samba dns and spn update list
+		find ${restore}/samba/private \
+			-maxdepth 1 \
+			-type f \
+			-name *_update_* \
+			-exec ${RSYNC} {} ${SambaPath}/private/ \;
+
+		# restore samba keys ( encrypted secrets )
+		find ${restore}/samba/private \
+			-maxdepth 1 \
+			-type f \
+			-name *.key \
+			-exec ${RSYNC} {} ${SambaPath}/private/ \;
+
+		# restore samba configs ( kerberos )
+		find ${restore}/samba/private \
+			-maxdepth 1 \
+			-type f \
+			-name *.conf \
+			-exec ${RSYNC} {} ${SambaPath}/private/ \;
+
+		ucr commit ${SambaPath}/private/krb5.conf
+
+		samba-tool dbcheck --cross-ncs --fix --yes
+		samba-tool ntacl sysvolreset
+	}
+	#
+	# (re)start service unit(s)
+	for service in slapd samba; do
+		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ^${service}.service || continue && {
+			systemctl start -- ${service}.service || systemctl restart -- ${service}.service
+			systemctl status --no-pager --no-legend -- ${service}.service || continue
+		}
+	done
+	#
+	LdapValidateSecrets || LdapSetSecrets
+	#
+	ldapsearch -LLL -D ${ldap_hostdn} -y /etc/$(basename ${MachineSecret}) -s base || {
+		[[ $(stat --printf="%s" /etc/$(basename ${MachineSecret}) 2>/dev/null || printf 0) -gt 0 ]] || (
+			pwgen -1 -${machine_password_complexity:-scn} ${machine_password_length:-20} | tr --delete "\n" > \
+				/etc/$(basename ${MachineSecret})
+		) &&
+			udm computers/domaincontroller_master modify \
+				--dn ${ldap_hostdn} \
+				--set password=$(</etc/$(basename ${MachineSecret}))
+	}
+	#
+	# validate local keytab(s)
+	for keytab in $(find /{etc,opt,usr,var} -type f -regextype posix-egrep -regex ".*\.keytab$" -and -not -regex "${restore}.*"); do
+		for principal in $(ktutil --keytab=${keytab} list 2>/dev/null | awk '/'${kerberos_realm}'/{print $3}' | sort -u); do
+			kinit --keytab=${keytab} ${principal} 2>/dev/null && klist | egrep -- "krbtgt.*${kerberos_realm}$" && kdestroy || continue
+		done
+	done
+	#
+	/usr/share/univention-directory-notifier/univention-translog check --fix --skip-services
+	#
+	# (re)start service unit(s)
+	for service in ${services[@]}; do
+		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ^${service}.service || continue && {
+			systemctl start -- ${service}.service || systemctl restart -- ${service}.service
+			systemctl status --no-pager --no-legend -- ${service}.service || continue
+		}
+	done
+	#
+	univention-run-join-scripts --force && {
+		univention-config-registry commit
+	}
+	#
+}
+#
+## restore container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	ldap_base \
+	ldap_hostdn \
+	kerberos_realm \
+	hostname domainname \
+	machine_password_length \
+	machine_password_complexity \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

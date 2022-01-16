@@ -38,15 +38,28 @@ ConditionVirtualization=container
 ConditionPathIsReadWrite=/dev/shm
 ConditionPathExists=!/dev/shm/univention-container-mode.env
 
+# ignore affinity container from docker-compose environment
+#  => (systemd: Ignoring invalid environment assignment)
+
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/bash -c 'xargs -0 -n 1 echo </proc/1/environ > /dev/shm/univention-container-mode.env'
-ExecStart=/bin/bash -c '[[ -d /run/secrets ]] && \
-	for secret in $(find /run/secrets -type f); \
-		do echo "$$(basename $${secret})=\'$$(<$${secret})\'" >> /dev/shm/univention-container-mode.env; \
-	done || /bin/true'
-ExecStop=/bin/bash -c 'rm --force --verbose /dev/shm/univention-container-mode.env'
+
+ExecStart=/bin/bash -c '[[ -f /proc/1/environ ]] &&       \
+  xargs -0 -n 1 echo </proc/1/environ |                   \
+    egrep --invert-match -- "^affinity:container=="     > \
+      /dev/shm/univention-container-mode.env'
+
+ExecStart=/bin/bash -c '[[ -d /run/secrets ]] &&          \
+  for secret in $(find /run/secrets -type f); do          \
+    echo "$$(basename $${secret})=\'$$(<$${secret})\'" >> \
+      /dev/shm/univention-container-mode.env;             \
+  done || /bin/true'
+
+ExecStop=/bin/rm \
+  --force \
+    --verbose \
+      /dev/shm/univention-container-mode.env
 
 [Install]
 WantedBy=sysinit.target

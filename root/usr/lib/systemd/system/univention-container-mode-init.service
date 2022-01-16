@@ -39,16 +39,19 @@ ConditionVirtualization=container
 ConditionPathExists=/dev/shm/univention-container-mode.env
 ConditionPathExists=/usr/lib/univention-container-mode
 ConditionPathExists=/var/univention-join/joined
+ConditionPathExists=/var/univention-join/status
+ConditionPathExists=/etc/univention/base.conf
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 EnvironmentFile=/dev/shm/univention-container-mode.env
 WorkingDirectory=/usr/lib/univention-container-mode
-ExecStartPre=-/bin/sh  -c 'run-parts --verbose --  preinit.d'
-ExecStart=-/bin/sh     -c 'run-parts --verbose --     init.d'
-ExecStartPost=-/bin/sh -c 'run-parts --verbose -- postinit.d'
-ExecStartPost=-/bin/systemctl stop univention-container-mode-environment.service
+ExecStartPre=-/usr/bin/run-parts  --verbose --  preinit.d
+ExecStart=-/usr/bin/run-parts     --verbose --     init.d
+ExecStartPost=-/usr/bin/run-parts --verbose -- postinit.d
+ExecStartPost=-/usr/bin/systemctl \
+  stop -- univention-container-mode-environment.service
 
 [Install]
 WantedBy=multi-user.target

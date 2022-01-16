@@ -1,6 +1,6 @@
 # Univention Corporate Server - Container Mode
 
-This is a self deploying container for running a [Univention Corporate Server](https://www.univention.com/products/ucs/) ([UCS](https://docs.software-univention.de/manual.html)) with the role of [primary node](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup node](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica node](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) or [managed node](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node).
+This is a self deploying container for running a [Univention Corporate Server](https://www.univention.com/products/ucs/) ([UCS](https://docs.software-univention.de/manual.html)) with the role of [primary](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) directory node or [managed](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node) node.
 
 ## [Build your own bootstrap container image](docs/README.BUILD.md) ```( optionally )```
 If you like, you can build your own minbase container image from scratch. You find a script called [bootstrap.sh](bootstrap/bootstrap.sh), this works for docker or podman.
@@ -21,6 +21,9 @@ Here you will find all basic examples for running a ucs with different systems r
 
 ## [Advanced examples](docs/README.ADVANCED.EXAMPLES.md)
 Here you will find advanced example(s) for running a ucs with different systems roles and some additional options, like networking and external certificate(s).
+
+## [Advanced container image build with bootstrap](docs/README.ADVANCED.BUILD.md)
+Build your own minbase container image from scratch and directly from testing repository ( [updates-test.software-univention.de](https://updates-test.software-univention.de/) ) to your local container registry.
 
 ## [Extended usage](docs/README.EXTENDED.USAGE.md)
 Would you like to expand the project for yourself? Have a look at the section [extended usage](docs/README.EXTENDED.USAGE.md) and read about the possibilities with a [template](root/usr/lib/univention-container-mode/template) file and how to place it. But if you think, that will be great for all of us, check [this on](CONTRIBUTING.md) too.

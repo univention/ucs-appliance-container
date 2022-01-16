@@ -1,0 +1,113 @@
+#!/bin/bash
+#
+# Univention Container Mode - setup-join-cifs
+#
+# Copyright 2020-2021 Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+# eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## apt-get install or univention-add-app from container mode environment
+# install: '{"(add-app|install|remove)":["(app|package)"[,"(app|package)",...]]}'
+# install: '{"add-app":["samba4"[,"cups"]]}'
+#
+[[ -z ${install:-} ]] || {
+	json=jq
+	#
+	# checking for samba and cups app, to prevent imported users/admins from setup-ldif
+	#  don't mix user or admin accounts in middel of system accounts
+	univention-check-join-status 2>&1 |
+		egrep --quiet -- "^Joined successfully" && [[ "$(ucr get server/role)" == "domaincontroller_master" ]] && {
+		command -v ${json} >/dev/null 2>&1 || UniventionInstallNoRecommends ${json}
+		command -v ${json} && {
+			JSON="${json} --raw-output"
+			echo ${install} | ${JSON} 'keys | .[]' >/dev/null 2>&1 && {
+				for key in $(echo ${install} | ${JSON} 'keys | .[]'); do
+					case ${key} in
+					add-app) { # install filtered univention app(s)
+						for app in $(echo ${install} | ${JSON} '."add-app"[]'); do
+							[[ ${app} =~ ^(samba4|cups)$ ]] &&
+								UniventionAddApp ${app} || /bin/true
+						done
+					} ;;
+					install) { # install filtered and converted univention app(s)
+						for package in $(echo ${install} | ${JSON} '."install"[]'); do
+							[[ ${package} =~ ^univention ]] && {
+								# univention-<APP>
+								app=$(echo ${package} | sed 's/^univention\-//g')
+								[[ ${app} =~ ^(samba4)$ ]] &&
+									UniventionAddApp ${app} || /bin/true
+							}
+						done
+					} ;;
+					esac
+				done
+			}
+		}
+	}
+}
+#
+## apt-get install or univention-add-app from container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	install \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

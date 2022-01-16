@@ -66,23 +66,28 @@ for ns in $(sed -rn 's/^nameserver[\t ]+([^\t ]+)/\1/p' ${ucrcommit[resolv.conf]
 	debug $(host ${ns})
 done
 #
-# overwrite(s) from container mode environment
+# overwrite(s) from container mode environment if dcwait inactive
+#  INFO: look 52-setup-join, maybe we have to wait for a master
 #
-for ns in ${nameserver[@]:-}; do
-	[[ ${ucrcounter[nameserver]} > 3 ]] && break
-	ucrchanges+=("nameserver${ucrcounter[nameserver]}=${ns}")
-	ucrcounter[nameserver]=$((${ucrcounter[nameserver]} + 1))
-	debug $(host ${ns})
-done
+[[ ${dcwait-} =~ ^1|yes|true|YES|TRUE$ ]] || {
+	for ns in ${nameserver[@]:-}; do
+		[[ ${ucrcounter[nameserver]} > 3 ]] && break
+		ucrchanges+=("nameserver${ucrcounter[nameserver]}=${ns}")
+		ucrcounter[nameserver]=$((${ucrcounter[nameserver]} + 1))
+		debug $(host ${ns})
+	done
+	#
+	for ns in ${forwarder[@]:-}; do
+		[[ ${ucrcounter[forwarder]} > 3 ]] && break
+		ucrchanges+=("dns/forwarder${ucrcounter[forwarder]}=${ns}")
+		ucrcounter[forwarder]=$((${ucrcounter[forwarder]} + 1))
+		debug $(host ${ns})
+	done
+}
 #
-for ns in ${forwarder[@]:-}; do
-	[[ ${ucrcounter[forwarder]} > 3 ]] && break
-	ucrchanges+=("dns/forwarder${ucrcounter[forwarder]}=${ns}")
-	ucrcounter[forwarder]=$((${ucrcounter[forwarder]} + 1))
-	debug $(host ${ns})
-done
-#
-[[ -z ${domainname:-} ]] && domainname="$(hostname --long | sed -re 's/^[^.]+.//')"
+[[ -z ${domainname:-} ]] && domainname="$(hostname --long 2>/dev/null | sed -re 's/^[^.]+.//' || /bin/true)"
+[[ -z ${domainname:-} ]] && domainname="$(hostname | sed -re 's/^[^.]+.//' || /bin/true)"
+[[ -z ${domainname:-} ]] && domainname="$(echo ${HOSTNAME:-} | sed -re 's/^[^.]+.//')"
 [[ -z ${domainname:-} ]] && domainname="$(sed -rn 's/^domain[\t ]+([^\t ]+)/\1/p' ${ucrcommit[resolv.conf]})"
 [[ -z ${domainname:-} ]] || ucrchanges+=("domainname=${domainname}")
 #

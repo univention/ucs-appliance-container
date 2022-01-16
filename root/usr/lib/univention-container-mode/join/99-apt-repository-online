@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Univention Container Mode - setup-pre
+# Univention Container Mode - apt-repository-online
 #
 # Copyright 2020-2021 Univention GmbH
 #
@@ -38,7 +38,7 @@ source /usr/lib/univention-container-mode/utils.sh || exit 1
 # }
 
 ## ucr shell
-eval "$(ucr shell hostname domainname)"
+# eval "$(ucr shell hostname domainname)"
 
 ## declare
 declare -a ucrchanges
@@ -53,40 +53,12 @@ declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
 
 debug "### START SCRIPT($(pwd)/$0) ###"
-## Prepare setup for container mode environment
+## check repository online for container mode environment
 #
-UniventionSystemCertificateCommand="univention-certificate"
-UniventionSystemCertificatePackage="univention-ssl"
+egrep --quiet --recursive -- Traceback /etc/apt/sources.* &&
+	UniventionDistUpdate
 #
-# speedup first certificate, ldap isn't configured
-#
-univention-config-registry set \
-	"ldap/client/retry/count=0"
-ucrchanges+=(
-	"ldap/client/retry/count=10"
-)
-#
-which ${UniventionSystemCertificateCommand} >/dev/null 2>&1 || {
-	apt-get --verbose-versions --assume-yes --no-install-recommends install ${UniventionSystemCertificatePackage}
-	apt-mark auto ${UniventionSystemCertificatePackage}
-}
-#
-# generate certificate
-#
-which ${UniventionSystemCertificateCommand} >/dev/null 2>&1 && {
-	${UniventionSystemCertificateCommand} check -name ${hostname}.${domainname} ||
-		${UniventionSystemCertificateCommand} new -name ${hostname}.${domainname}
-
-	openssl verify -CAfile /etc/univention/ssl/ucsCA/CAcert.pem \
-		/etc/univention/ssl/${hostname}.${domainname}/cert.pem
-
-	openssl x509 -text -in \
-		/etc/univention/ssl/${hostname}.${domainname}/cert.pem
-
-	${UniventionSystemCertificateCommand} new -name "unassigned-hostname.unassigned-domain"
-}
-#
-## Prepare setup for container mode environment
+## check repository online for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"
 
 ## ucr removes
@@ -100,7 +72,6 @@ UniventionConfigCommit ${ucrcommit[@]}
 
 ## cleanup
 unset \
-	hostname domainname \
 	ucrchanges ucrremoves ucrcounter ucrcommit
 
 debug "### CLEAN SCRIPT($(pwd)/$0) ###"

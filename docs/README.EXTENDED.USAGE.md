@@ -25,9 +25,3 @@ First fo all, you have to understand the structure of all the important running 
 ### Structure of join based system roles like [primary](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) directory node or [managed](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node) node.
 
 A closer look into [univention-container-mode-firstboot](../root/usr/lib/systemd/system/univention-container-mode-firstboot.service) will explain that the command ``` ( run-parts --verbose -- join ) ``` runs all scripts from the [join](../root/usr/lib/univention-container-mode/join) directory. Finaly copy, rename and modify the [template](../root/usr/lib/univention-container-mode/template) into the directory ``` root/usr/lib/univention-container-mode/join/ ``` and run your own container build to deploy the new feature on your local registry.
-
-### ~~Structure of a none join based system role like [basesystem](https://docs.software-univention.de/manual-4.4.html#domain-ldap:Base_system)~~[^1]
-
-~~Once again a closer look into [univention-container-mode-firstboot](../root/usr/lib/systemd/system/univention-container-mode-firstboot.service) will explain that the command ``` ( run-parts --verbose -- base ) ``` runs all scripts from the [base](../root/usr/lib/univention-container-mode/base) directory. Finaly copy, rename and modify the [template](../root/usr/lib/univention-container-mode/template) into the directory ``` root/usr/lib/univention-container-mode/base/ ``` and run your own container build to deploy the new feature on your local registry.~~
-
-[^1]: Since UCS version 5.x, the basesystem is omitted!

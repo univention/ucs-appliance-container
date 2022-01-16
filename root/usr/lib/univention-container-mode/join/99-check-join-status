@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Univention Container Mode - setup
+# Univention Container Mode - check-join-status
 #
 # Copyright 2020-2021 Univention GmbH
 #
@@ -38,7 +38,7 @@ source /usr/lib/univention-container-mode/utils.sh || exit 1
 # }
 
 ## ucr shell
-eval "$(ucr shell hostname domainname password/hashing/method machine/password/complexity machine/password/length)"
+# eval "$(ucr shell hostname domainname)"
 
 ## declare
 declare -a ucrchanges
@@ -53,51 +53,11 @@ declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
 
 debug "### START SCRIPT($(pwd)/$0) ###"
-## setup basesystem from container mode environment
-# role   : <string> basesystem
-# rootpw : <string> default(random)
-# sshkey : <string>
+## check join status for container mode environment
 #
-[[ -z ${role:-} ]] && exit 1
-
-role=$(
-	echo -n ${role} | awk '\
-	 /^[a-zA-Z]/{ printf tolower($1)  } \
-	!/^[a-zA-Z]/{ printf "basesystem" }'
-)
-
-# import ssh public key
-[[ -z ${sshkey:-} ]] || {
-	mkdir --parents /root/.ssh && {
-		touch /root/.ssh/authorized_keys &&
-			echo ${sshkey} >/root/.ssh/authorized_keys
-	}
-}
-
-# generate root password if needed
-[[ -z ${rootpw:-} ]] && passwd=$(
-	pwgen -1 -${machine_password_complexity:-scn} ${machine_password_length:-64} | tr --delete '\n'
-)
-[[ -z ${passwd:-} ]] || echo -n ${passwd} >/dev/shm/univention-container-mode.secrets
-[[ -z ${rootpw:-} ]] && rootpw=${passwd}
+UniventionCheckJoinStatus
 #
-# set root password
-#
-which mkpasswd >/dev/null 2>&1 || echo "root:${rootpw}" | chpasswd
-which mkpasswd >/dev/null 2>&1 &&
-	usermod --password $(mkpasswd -H ${password_hashing_method:-SHA-512} "${rootpw}") root
-
-# set server role
-#
-univention-config-registry set "server/role=${role}" >/dev/null
-
-# fake join for systemd container mode units
-#
-mkdir --parents /var/univention-join && {
-	touch /var/univention-join/{joined,status}
-}
-#
-## setup basesystem from container mode environment
+## check join status for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"
 
 ## ucr removes
@@ -111,12 +71,6 @@ UniventionConfigCommit ${ucrcommit[@]}
 
 ## cleanup
 unset \
-	role \
-	hostname domainname \
-	sshkey rootpw passwd \
-	password_hashing_method \
-	machine_password_length \
-	machine_password_complexity \
 	ucrchanges ucrremoves ucrcounter ucrcommit
 
 debug "### CLEAN SCRIPT($(pwd)/$0) ###"

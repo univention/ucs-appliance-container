@@ -142,24 +142,27 @@ ucrchanges+=(
 	"ldap/client/retry/count=10"
 )
 #
+# force reconfigure package if already installed
+#
+command -v ${CertificateCommand} && {
+	mountpoint --quiet ${CertificateBaseDir} &&
+		rm --force --recursive --verbose ${CertificateBaseDir}/* ||
+		rm --force --recursive --verbose ${CertificateBaseDir}
+	dpkg-reconfigure --force ${CertificatePackage}
+}
+#
 # install depend package(s)
 #
-which ${CertificateCommand} >/dev/null 2>&1 || {
-	apt-get --verbose-versions --assume-yes --no-install-recommends install ${CertificatePackage}
-	apt-mark auto ${CertificatePackage}
-}
+command -v ${CertificateCommand} >/dev/null 2>&1 || UniventionInstallNoRecommends ${CertificatePackage}
 #
 # import certificates
 #
 [[ -z ${certificates:-} ]] || {
 	json=jq
 
-	which ${json} >/dev/null 2>&1 || {
-		apt-get --verbose-versions --assume-yes --no-install-recommends install ${json}
-		apt-mark auto ${json}
-	}
+	command -v ${json} >/dev/null 2>&1 || UniventionInstallNoRecommends ${json}
 
-	which ${json} >/dev/null 2>&1 && {
+	command -v ${json} && {
 		JSON="${json} --raw-output"
 		#
 		# check json and try to import the certificate(s)
@@ -167,7 +170,9 @@ which ${CertificateCommand} >/dev/null 2>&1 || {
 			source /usr/share/univention-ssl/make-certificates.sh && {
 
 				# remove force the old certificates from install
-				rm --force --recursive --verbose ${CertificateBaseDir}
+				mountpoint --quiet ${CertificateBaseDir} &&
+					rm --force --recursive --verbose ${CertificateBaseDir}/* ||
+					rm --force --recursive --verbose ${CertificateBaseDir}
 
 				# create directories and set permission
 				mkdir --parents --mode=0755 ${CertificateBaseDir}/ucsCA/{certs,crl,newcerts,private} &&
@@ -474,7 +479,7 @@ which ${CertificateCommand} >/dev/null 2>&1 || {
 					}
 
 					# verify certificate and check the subject
-					[[ -f ${CPATH} ]] && openssl verify ${CPATH} && openssl x509 -noout -subject -in ${CPATH} | egrep --silent -- "${CN}" && {
+					[[ -f ${CPATH} ]] && openssl verify ${CPATH} && openssl x509 -noout -subject -in ${CPATH} | egrep --quiet -- "${CN}" && {
 						STATE="V"
 						# get certificate enddate
 						EDATE=$(date --date "$(
@@ -552,7 +557,7 @@ which ${CertificateCommand} >/dev/null 2>&1 || {
 #
 # generate host certificate if needed
 #
-which ${CertificateCommand} >/dev/null 2>&1 && {
+command -v ${CertificateCommand} && {
 	${CertificateCommand} check -name ${hostname}.${domainname} ||
 		${CertificateCommand} new -name ${hostname}.${domainname}
 

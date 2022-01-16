@@ -14,10 +14,11 @@ STDOUT ( succeed )
 STDOUT ( timeing )
 ...
 ```
-## Advanced build minbase bootstrap container image from scratch ```( optionally with time )```
-Script for docker or podman with debootstrap that imports the first container image directly from testing repository ( [updates-test.software-univention.de](https://updates-test.software-univention.de/) ) to your local container registry.
+## Advanced build minbase bootstrap container image from scratch ```( optionally with time and/or --slimify )```
+Script for docker or podman with debootstrap that imports the first container image directly from testing repository ( [updates-test.software-univention.de](https://updates-test.software-univention.de/) ) to your local container registry. As you will see, the command option ``` --slimify ``` will disable and erase the man pages and unnecessary locales too. But remember that the ``` ${TAG} ``` will be expanded to include ``` -slim ```. All dpkg -- Debian package manager config files are located under [dpkg.cfg.d](../root/etc/dpkg/dpkg.cfg.d)
+.
 ```bash
-VERSION="5.0-0"; \
+VERSION="5.0-1"; \
   time /bin/bash bootstrap/bootstrap.sh \
     --use-cache \
     --arch amd64 \
@@ -33,15 +34,16 @@ sys   0m12,882s
 ```
 If your an non root podman user, an extra step is requerd:
 ```bash
-# sudo sudo tar --create --directory=<...debootstrap...> . | podman import --message "..." - univention-corporate-server-debootstrap:test
+# sudo podman import --message "..." univention-corporate-server-test.tar univention-corporate-server-debootstrap:${VERSION}-test
+# sudo podman image tag univention-corporate-server-debootstrap:${VERSION}-test univention-corporate-server-debootstrap:test
 ```
 ### Inspect the minbase bootstrap container image
 ```bash
 docker image inspect univention-corporate-server-debootstrap:test
 ```
-## Build a deployment container image with different repository server ```( optionally with time )```
+## Build a deployment container image with different repository server using docker build ```( optionally with time )```
 ```bash
-VERSION="5.0-0"; IMAGE="univention-corporate-server-debootstrap"; TAG="test"; MIRROR="https://updates-test.software-univention.de/"; \
+VERSION="5.0-1"; IMAGE="univention-corporate-server-debootstrap"; TAG="test"; MIRROR="https://updates-test.software-univention.de/"; \
   time docker build \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
     --build-arg MIRROR=${MIRROR} \
@@ -52,14 +54,40 @@ VERSION="5.0-0"; IMAGE="univention-corporate-server-debootstrap"; TAG="test"; MI
     --tag univention-corporate-server:${VERSION}-${TAG} \
     --tag univention-corporate-server:${TAG} .
 ...
+Successfully tagged univention-corporate-server:${VERSION}-${TAG}
 Successfully tagged univention-corporate-server:test
 ...
-real  1m33,056s
-user   0m0,190s
-sys    0m0,294s
+real  0m44,781s
+user  0m40,974s
+sys   0m12,485s
 ...
 ```
 ### Inspect the univention-corporate-server container image
 ```bash
 docker image inspect univention-corporate-server:test
+```
+## Build a deployment container image with different repository server using podman build ```( optionally with time )```
+```bash
+VERSION="5.0-1"; IMAGE="univention-corporate-server-debootstrap"; TAG="test"; MIRROR="https://updates-test.software-univention.de/"; \
+  time podman build \
+    --format docker \
+    --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+    --build-arg MIRROR=${MIRROR} \
+    --build-arg VERSION="${VERSION}-${TAG}" \
+    --build-arg COMMENT="$(podman image inspect --format '{{.Comment}}' ${IMAGE}:${TAG})" \
+    --build-arg IMAGE=${IMAGE} \
+    --build-arg TAG=${TAG} \
+    --tag univention-corporate-server:${VERSION}-${TAG} \
+    --tag univention-corporate-server:${TAG} .
+...
+COMMIT univention-corporate-server:${VERSION}-${TAG}
+...
+real  0m31,228s
+user  0m24,455s
+sys   0m14,547s
+...
+```
+### Inspect the univention-corporate-server container image
+```bash
+podman image inspect univention-corporate-server:test
 ```

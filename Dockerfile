@@ -1,6 +1,179 @@
-ARG IMAGE=univention-corporate-server-debootstrap
+ARG IMAGE=univention/univention-corporate-server-debootstrap
 ARG TAG=latest
-FROM ${IMAGE}:${TAG}
+FROM ${IMAGE}:${TAG} AS BUILD
+
+RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+
+ARG APT="apt-get --no-install-recommends -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false -o Acquire::Max-FutureTime=31536000 -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1"
+
+# init Acquire User Agent for container build
+ARG VERSION=0.0-0
+ARG CICD=PRODUCTION
+ARG UUID=00000000-0000-0000-0000-000000000000
+RUN echo "Acquire\n{\n\thttp\n\t\t{\n\t\t\tUser-Agent \"UCS CONTAINER,${CICD} BUILD - ${VERSION} - ${UUID} - ${UUID}\";\n\t\t};\n};" > /etc/apt/apt.conf.d/55user_agent
+
+# podman run and build quick and dirty fix ( Creating new user ... chfn: PAM: System error )
+# RUN $(which chfn) --full-name "ucs container root" root || ln --symbolic --force /bin/true $(which chfn)
+# debian run and build quick and dirty fix ( Creating new user ... chfn: PAM: Authentication service cannot retrieve authentication info )
+# since 2021-06-12 also on debian based systems ( maybe adduser vs useradd )
+RUN \
+  ln --symbolic --force /bin/true /bin/chfn;                      \
+  ln --symbolic --force /bin/true /usr/bin/chfn;                  \
+  ln --symbolic --force /bin/true /usr/local/bin/chfn
+
+# Processing triggers for man-db (2.8.5-2) ... overlayfs ... ???
+#  mandb --create need disk I/O ... force disabled for now
+RUN \
+  ln --symbolic --force /bin/true /bin/mandb;                     \
+  ln --symbolic --force /bin/true /usr/bin/mandb;                 \
+  ln --symbolic --force /bin/true /usr/local/bin/mandb
+
+# systemd kmod-static-nodes service unit failed on startup/boot
+#  ( Failed at step EXEC spawning /bin/kmod: No such file or directory )
+#  ( kmod will installed with the join/00-aA-DEPENDENCIES-Aa-00 script )
+RUN \
+  ln --symbolic --force /bin/true /bin/kmod
+
+# checking slimify from debootstrap ( no man pages, no locales, no ... )
+ARG SLIMIFY=/etc/dpkg/dpkg.cfg.d/univention-container-mode-slimify
+RUN \
+  test -d /usr/share/locale/de >/dev/null 2>&1 || touch ${SLIMIFY}
+
+# install minimal dependencies ( systemd )
+RUN \
+  ${APT} update;                                                  \
+  ${APT} install systemd systemd-sysv;                            \
+  ${APT} dist-upgrade;                                            \
+  ${APT} autoremove;                                              \
+  ${APT} clean
+
+# set different repository online server by --build-arg MIRROR
+ARG MIRROR="https://updates.software-univention.de/"
+RUN printf "%s" ${MIRROR} > /etc/apt/mirror.url
+
+# get univention-container-mode
+COPY root /
+
+RUN \
+  find                                                            \
+  /usr/lib/univention-container-mode                              \
+  /usr/lib/univention-ldap/check-exec-condition                   \
+  /usr/lib/univention-ldap/check-subschema-hash                   \
+  /usr/sbin/update-initramfs                                      \
+  /usr/sbin/update-grub                                           \
+  /usr/sbin/grub-probe                                            \
+  -type f -print0 | xargs -0 touch;                               \
+  find                                                            \
+  /usr/lib/univention-container-mode                              \
+  /usr/lib/univention-ldap/check-exec-condition                   \
+  /usr/lib/univention-ldap/check-subschema-hash                   \
+  /usr/sbin/update-initramfs                                      \
+  /usr/sbin/update-grub                                           \
+  /usr/sbin/grub-probe                                            \
+  -type f -print0 | xargs -0 chmod -v +x
+
+RUN \
+  rm --force                                                      \
+  /etc/{machine-id,localtime,hostname,shadow,locale.conf}         \
+  /var/lib/dbus/machine-id;                                       \
+  rm --force --recursive                                          \
+  /var/lib/apt/lists/* /tmp/* /var/tmp/* /run/* /var/run/*;       \
+  rm --force                                                      \
+  /var/cache/apt/archives/*.deb                                   \
+  /var/cache/apt/archives/partial/*.deb                           \
+  /var/cache/apt/*.bin                                            \
+  /var/cache/debconf/*old                                         \
+  /var/log/apt/*.log.*                                            \
+  /var/log/apt/*.log                                              \
+  /var/log/*.log                                                  \
+  /var/log/{btmp,debug,faillog,lastlog,messages,syslog,wtmp}      \
+  /etc/rc*.d/*                                                    \
+  /etc/systemd/system/*.wants/*                                   \
+  /lib/systemd/system/multi-user.target.wants/*                   \
+  /lib/systemd/system/systemd-update-utmp*                        \
+  /lib/systemd/system/local-fs.target.wants/*                     \
+  /lib/systemd/system/sockets.target.wants/*udev*                 \
+  /lib/systemd/system/sockets.target.wants/*initctl*              \
+  /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup*
+
+# checking for slimify and/or clean up ...
+RUN \
+  test -f ${SLIMIFY} && rm --force --recursive                    \
+  /usr/share/{groff,info,linda,lintian,man} /var/cache/man;       \
+  test -f ${SLIMIFY} &&                                           \
+  find /usr/share/doc -depth -type f ! -name copyright -delete;   \
+  test -f ${SLIMIFY} &&                                           \
+  find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*'    \
+  -exec rm --force --verbose --recursive {} \;;                   \
+  find /usr/share/doc -depth -empty -delete
+RUN \
+  test -f ${SLIMIFY} || find /etc/apt/apt.conf.d                  \
+  -type f -name 'univention-container-mode*'                      \
+  -exec rm --force --verbose {} \;;                               \
+  test -f ${SLIMIFY} || find $(dirname ${SLIMIFY})                \
+  -type f -name 'univention-container-mode*'                      \
+  -exec rm --force --verbose {} \;
+RUN rm --force --verbose ${SLIMIFY}
+
+# set univention-container-mode permission for systemd
+RUN \
+  find                                                            \
+  /lib/systemd/system                                             \
+  -type f -print0 | xargs -0 chmod -v 0644;                       \
+  find                                                            \
+  /lib/systemd/system                                             \
+  -type d -print0 | xargs -0 chmod -v 0755
+
+RUN ln -s /bin/false /usr/sbin/univention-check-join-status
+
+# set the latest version of .bashrc and .profile from /etc/skel
+RUN \
+  ln -sf /etc/skel/.bashrc /root/.bashrc;                         \
+  ln -sf /etc/skel/.profile /root/.profile
+
+# univention-container-mode default target unit
+#  systemd "last on boot, but first on halt"
+RUN \
+  test -f /lib/systemd/system/univention-container-mode.target && \
+  ln                                                              \
+  --force                                                         \
+  --symbolic                                                      \
+  /lib/systemd/system/univention-container-mode.target            \
+  /etc/systemd/system/default.target
+
+RUN systemctl enable --                                           \
+  univention-container-mode-environment.service                   \
+  univention-container-mode-firstboot.service                     \
+  univention-container-mode-recreate.service                      \
+  univention-container-mode-storage.service                       \
+  univention-container-mode-backup.service                        \
+  univention-container-mode-joined.service                        \
+  univention-container-mode-fixes.service                         \
+  univention-container-mode-init.service
+
+RUN systemctl mask --                                             \
+  tmp.mount
+
+# we don't need this service unit(s) in the container
+#  see root/usr/lib/systemd/system/systemd-*.service.d/*.conf
+#  see root/usr/lib/univention-container-mode/\
+#    {join,recreate}/00-aA-NAMESPACES-Aa-00 too
+#      => we need systemd-timedated for namespace detection
+RUN systemctl mask --                                             \
+  systemd-networkd-wait-online.service                            \
+  systemd-timedated.service
+# systemd-resolved ( ConditionVirtualization=!container )
+# systemd-logind   ( ConditionVirtualization=!container )
+
+RUN systemctl mask --                                             \
+  lvm2.service lvm2-activation.service lvm2-monitor.service       \
+  lvm2-lvmpolld.socket lvm2-lvmpolld.service                      \
+  lvm2-lvmetad.socket lvm2-lvmetad.service                        \
+  dm-event.socket dm-event.service
+
+FROM scratch
+
+COPY --from=BUILD / /
 
 ARG DATE
 ARG COMMENT
@@ -15,98 +188,11 @@ LABEL maintainer="Univention GmbH <packages@univention.de>" \
   org.label-schema.vendor="Univention GmbH" \
   org.label-schema.version="1.0.0-dev" \
   org.label-schema.schema-version="1.0" \
-  org.label-schema.docker.cmd="docker run --detach --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:ro --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp --restart unless-stopped --hostname dc.ucs.example --name dc.ucs.example univention-corporate-server:latest" \
-  org.label-schema.docker.cmd.devel="docker run --env DEBUG=TRUE --detach --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:ro --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp --restart unless-stopped --hostname dc.ucs.example --name dc.ucs.example univention-corporate-server:latest" \
+  org.label-schema.docker.cmd="docker run --detach --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:ro --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp:exec --restart unless-stopped --hostname dc.ucs.example --name dc.ucs.example univention/univention-corporate-server:latest" \
+  org.label-schema.docker.cmd.devel="docker run --env DEBUG=TRUE --detach --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:ro --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp:exec --restart unless-stopped --hostname dc.ucs.example --name dc.ucs.example univention/univention-corporate-server:latest" \
   org.label-schema.docker.build.from=${COMMENT}
 
 ENV DEBIAN_FRONTEND noninteractive
-RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
-
-# clean only for UCS 4.x default sources.list from debootstrap
-RUN \
-  which ucr > /dev/null 2>&1 &&                                 \
-  ucr get version/version | egrep --silent -- ^4 &&             \
-  echo > /etc/apt/sources.list || /bin/true
-
-ARG APT="apt-get --no-install-recommends -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false -o Acquire::Max-FutureTime=31536000 -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1"
-
-# podman run and build quick and dirty fix ( Creating new user ... chfn: PAM: System error )
-RUN $(which chfn) --full-name "ucs container root" root || ln --symbolic --force /bin/true $(which chfn)
-
-# install dependencies
-RUN \
-  ${APT} update;                                                \
-  ${APT} --verbose-versions install                             \
-  univention-base-files univention-updater                      \
-  cron systemd systemd-sysv;                                    \
-  ${APT} dist-upgrade --assume-yes;                             \
-  ${APT} autoremove --assume-yes;                               \
-  ${APT} clean
-
-# set different repository online server by --build-arg MIRROR
-ARG MIRROR="https://updates.software-univention.de/"
-RUN ucr set repository/online/server=${MIRROR}
-
-# get univention-container-mode
-COPY root /
-
-RUN \
-  find                                                          \
-  /usr/lib/univention-container-mode                            \
-  /usr/sbin/update-initramfs                                    \
-  /usr/sbin/grub-probe                                          \
-  -type f | xargs touch;                                        \
-  find                                                          \
-  /usr/lib/univention-container-mode                            \
-  /usr/sbin/update-initramfs                                    \
-  /usr/sbin/grub-probe                                          \
-  -type f | xargs chmod -v +x
-
-RUN \
-  rm --force                                                    \
-  /etc/{machine-id,localtime,hostname,shadow,locale.conf}       \
-  /var/lib/dbus/machine-id;                                     \
-  rm --force --recursive                                        \
-  /var/lib/apt/lists/* /tmp/* /var/tmp/* /run/* /var/run/*;     \
-  rm --force                                                    \
-  /var/cache/apt/archives/*.deb                                 \
-  /var/cache/apt/archives/partial/*.deb                         \
-  /var/cache/apt/*.bin;                                         \
-  rm --force --verbose                                          \
-  /var/log/univention/*.log                                     \
-  /var/log/apt/*.log                                            \
-  /var/log/*.log                                                \
-  /var/log/{btmp,debug,faillog,lastlog,messages,syslog,wtmp}    \
-  /etc/rc*.d/*                                                  \
-  /etc/systemd/system/*.wants/*                                 \
-  /lib/systemd/system/multi-user.target.wants/*                 \
-  /lib/systemd/system/systemd-update-utmp*                      \
-  /lib/systemd/system/local-fs.target.wants/*                   \
-  /lib/systemd/system/sockets.target.wants/*udev*               \
-  /lib/systemd/system/sockets.target.wants/*initctl*            \
-  /lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup*
-
-RUN ln -s /bin/false /usr/sbin/univention-check-join-status
-
-RUN systemctl enable --                                         \
-  univention-container-mode-environment.service                 \
-  univention-container-mode-firstboot.service                   \
-  univention-container-mode-fixes.service                       \
-  univention-container-mode-init.service
-
-# mask tmp.mount only for UCS 4.x ( Debian Stretch )
-RUN ucr get version/version | egrep --silent -- ^4 &&           \
-  systemctl mask --                                             \
-  tmp.mount || /bin/true
-
-RUN systemctl mask --                                           \
-  lvm2.service lvm2-activation.service lvm2-monitor.service     \
-  lvm2-lvmpolld.socket lvm2-lvmpolld.service                    \
-  lvm2-lvmetad.socket lvm2-lvmetad.service                      \
-  dm-event.socket dm-event.service
-
-RUN \
-  sed -i 's/^#CONFIGURE_INTERFACES=yes/CONFIGURE_INTERFACES=no/g' /etc/default/networking
 
 # https://www.freedesktop.org/software/systemd/man/systemd-detect-virt.html
 # https://www.freedesktop.org/software/systemd/man/systemd.unit.html#ConditionVirtualization=
@@ -142,14 +228,9 @@ STOPSIGNAL SIGRTMIN+3
 HEALTHCHECK --interval=5m --timeout=3s --retries=15 --start-period=25m \
   CMD curl --fail --output /dev/null --silent --location https://$(hostname --long)/univention/portal/ || exit 1
 
-# VOLUME UCS    /etc/{univention,postfix,postgresql} /var/{lib,cache}
-# VOLUME DIND   /var/lib/{docker,containerd}
-# VOLUME LDAP   /var/lib/univention-ldap
-# VOLUME SAMBA  /var/lib/ (sysvol, ...)
-
-# /etc/univention /etc/machine.secret /etc/ldap.secret
 VOLUME /home /sys/fs/cgroup /lib/modules /run /run/lock /tmp \
   /var/lib/docker /var/lib/containerd \
-  /var/lib/univention-ldap
+  /var/univention-join \
+  /var/backups
 
 CMD [ "/sbin/init" ]

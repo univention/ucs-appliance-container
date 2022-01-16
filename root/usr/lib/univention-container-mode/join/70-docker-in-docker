@@ -55,14 +55,20 @@ declare -A ucrcommit
 debug "### START SCRIPT($(pwd)/$0) ###"
 ## DinD for container mode environment
 #
-mountpoint /var/lib/docker >/dev/null 2>&1 && { # DinD YES/NO ?
-	rm -rfv /var/lib/docker/* /var/lib/containerd/*
+mountpoint --quiet /var/lib/docker >/dev/null 2>&1 && { # DinD YES/NO ?
+	# don't clean on restore/recreate
+	echo ${0} | egrep --quiet -- recreate ||
+		rm -rfv /var/lib/docker/* /var/lib/containerd/*
 
 	BashCompletion=/etc/bash_completion.d
-	ServiceUnitList="containerd.service docker.socket docker.service"
 
-	for i in unmask enable start; do
-		systemctl ${i} -- ${ServiceUnitList} || /bin/true
+	services=(containerd.service docker.service)
+	sockets=(docker.socket)
+
+	# unmask/enable/start socket and service unit(s)
+	for stat in unmask enable start; do
+		for socket in ${sockets[@]}; do systemctl ${stat} -- ${socket}.socket >/dev/null 2>&1 || continue; done
+		for service in ${services[@]}; do systemctl ${stat} -- ${service}.service >/dev/null 2>&1 || continue; done
 	done
 
 	docker version >/dev/null 2>&1 && { # DinD YES
@@ -70,18 +76,18 @@ mountpoint /var/lib/docker >/dev/null 2>&1 && { # DinD YES/NO ?
 		ucrchanges+=("appcenter/docker/compose/network=172.30.30.1/16")
 
 		[[ -d ${BashCompletion} ]] && {
-			which docker >/dev/null 2>&1 && {
+			command -v docker >/dev/null 2>&1 && {
 				curl \
 					--location https://raw.githubusercontent.com/docker/docker-ce/$(docker version --format '{{.Server.Version}}' | grep -Po "\d+\.\d+")/components/cli/contrib/completion/bash/docker \
-					--silent --fail &&
+					--silent --output /dev/null --fail &&
 					curl \
 						--location https://raw.githubusercontent.com/docker/docker-ce/$(docker version --format '{{.Server.Version}}' | grep -Po "\d+\.\d+")/components/cli/contrib/completion/bash/docker \
 						--silent --output ${BashCompletion}/docker
 			}
-			which docker-compose >/dev/null 2>&1 && {
+			command -v docker-compose >/dev/null 2>&1 && {
 				curl \
 					--location https://raw.githubusercontent.com/docker/compose/$(docker-compose version --short)/contrib/completion/bash/docker-compose \
-					--silent --fail &&
+					--silent --output /dev/null --fail &&
 					curl \
 						--location https://raw.githubusercontent.com/docker/compose/$(docker-compose version --short)/contrib/completion/bash/docker-compose \
 						--silent --output ${BashCompletion}/docker-compose
@@ -93,8 +99,9 @@ mountpoint /var/lib/docker >/dev/null 2>&1 && { # DinD YES/NO ?
 	docker version >/dev/null 2>&1 || { # DinD NO
 		ucrchanges+=("appcenter/docker=false")
 
-		for i in stop disable mask; do
-			systemctl ${i} -- ${ServiceUnitList} || /bin/true
+		for stat in stop disable mask; do
+			for service in ${services[@]}; do systemctl ${stat} -- ${service}.service >/dev/null 2>&1 || continue; done
+			for socket in ${sockets[@]}; do systemctl ${stat} -- ${socket}.socket >/dev/null 2>&1 || continue; done
 		done
 	}
 

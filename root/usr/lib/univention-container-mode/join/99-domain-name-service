@@ -53,7 +53,7 @@ function UniventionDirecroryManagerUpdate() { # UniventionDirecroryManagerUpdate
 	local bind=$(
 		echo |
 			awk \
-				-v user=${dcuser:-} \
+				-v user=${dcuser:-Administrator} \
 				-v pass=${dcpass:-} \
 				-v base=${base} \
 				'{ \
@@ -153,7 +153,7 @@ for version in ${network[@]}; do
 	network[routelist]=$(ip -${version} route list | awk ' /^default/{ printf $0 }') # default via <address> dev <interface>
 	network[interface]=$(echo ${network[routelist]} | awk '/^default/{ for (I=1;I<=NF;I++) if ( $I=="dev" ) { print $(I+1) } }')
 	[[ -z ${network[interface]:-} ]] || {
-		network[addresses]=$(ip -${version} address show scope global dev ${network[interface]} | egrep "^*inet") # inet* <address>/<cidr> [brd <broadcast>] scope global <interface>
+		network[addresses]=$(ip -${version} address show scope global dev ${network[interface]} | egrep -- "^*inet") # inet* <address>/<cidr> [brd <broadcast>] scope global <interface>
 
 		network[address]=$(echo ${network[addresses]} | awk '/inet/{ split($2,IP,"/"); printf IP[1] }') # get only first match in awk by $2
 		network[cidr]=$(echo ${network[addresses]} | awk '   /inet/{ split($2,IP,"/"); printf IP[2] }') # get only first match in awk by $2
@@ -164,7 +164,7 @@ for version in ${network[@]}; do
 		[[ ${version} == 4 ]] && IN=A
 		[[ ${version} == 6 ]] && IN=AAAA
 
-		dig @${NS} ${hostname}.${domainname} ${IN} 2>&1 | egrep --quiet "^${hostname}.${domainname}.*IN.*${IN}.*${network[address]}$" ||
+		dig @${NS} ${hostname}.${domainname} ${IN} 2>&1 | egrep --quiet -- "^${hostname}.${domainname}.*IN.*${IN}.*${network[address]}$" ||
 			umc-command --username ${hostname}\$ --password $(</etc/machine.secret) \
 				ip/change \
 				--option netmask=${network[cidr]} \
@@ -176,7 +176,7 @@ for version in ${network[@]}; do
 		# UniventionDirecroryManagerUpdate IN(host, domain, master, base, address, cidr, subnet, pointer)
 		#
 		dig @${NS} ${hostname}.${domainname} ${IN} 2>&1 |
-			egrep --quiet "^${hostname}.${domainname}.*IN.*${IN}.*${network[address]}$" || {
+			egrep --quiet -- "^${hostname}.${domainname}.*IN.*${IN}.*${network[address]}$" || {
 			UniventionDirecroryManagerUpdate \
 				${hostname} ${domainname} \
 				${ldap_master} ${ldap_base} \
@@ -185,8 +185,8 @@ for version in ${network[@]}; do
 		}
 		#
 		dig @${NS} -x ${network[address]} 2>&1 |
-			egrep --quiet "^$(
-				host ${network[address]} ${NS} | grep pointer | head -1 | awk '{ printf $1 }'
+			egrep --quiet -- "^$(
+				host ${network[address]} ${NS} | grep -- pointer | head -1 | awk '{ printf $1 }'
 			).*IN.*PTR.*${hostname}.${domainname}.$" || {
 			UniventionDirecroryManagerUpdate \
 				${hostname} ${domainname} \
@@ -197,7 +197,7 @@ for version in ${network[@]}; do
 		#
 		[[ "${server_role}" == "domaincontroller_master" ]] && {
 			dig @${NS} ${sso}.${domainname} ${IN} 2>&1 |
-				egrep --quiet "^${sso}.${domainname}.*IN.*${IN}.*${network[address]}$" || {
+				egrep --quiet -- "^${sso}.${domainname}.*IN.*${IN}.*${network[address]}$" || {
 				UniventionDirecroryManagerUpdate \
 					${sso} ${domainname} \
 					${ldap_master} ${ldap_base} \
@@ -206,8 +206,8 @@ for version in ${network[@]}; do
 			}
 			#
 			dig @${NS} -x ${network[address]} 2>&1 |
-				egrep --quiet "^$(
-					host ${network[address]} ${NS} | grep pointer | head -1 | awk '{ printf $1 }'
+				egrep --quiet -- "^$(
+					host ${network[address]} ${NS} | grep -- pointer | head -1 | awk '{ printf $1 }'
 				).*IN.*PTR.*${sso}.${domainname}.$" || {
 				UniventionDirecroryManagerUpdate \
 					${sso} ${domainname} \
@@ -219,6 +219,19 @@ for version in ${network[@]}; do
 		#
 		### Try to force fallback over univention-directory-manager with binddn and bindpwd #############################################
 
+		[[ "${server_role}" == "domaincontroller_master" ]] && {
+			#
+			# set mx record for minimal postfix config on primary network
+			#  ( <Domain Users with mailPrimaryAddress>@${domainname} )
+			#
+			dig @${NS} ${domainname} mx |
+				egrep --quiet -- "^${domainname}.*IN.*MX.*${hostname}.${domainname}.$" || {
+				univention-directory-manager \
+					dns/forward_zone modify \
+					--dn zoneName=${domainname},cn=dns,${ldap_base} \
+					--append mx="0 ${hostname}.${domainname}." 2>&1 || /bin/true
+			}
+		}
 	}
 	#
 done

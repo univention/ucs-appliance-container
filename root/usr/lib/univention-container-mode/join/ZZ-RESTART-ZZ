@@ -64,7 +64,7 @@ if [[ -e /var/univention-join/joined ]]; then
 		#
 		# stop all univention service unit(s)
 		for service in $(find /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system -type l -name univention* -exec basename {} \;); do
-			echo ${service} | egrep --silent --invert-match "^univention-container-mode" && {
+			echo ${service} | egrep --quiet --invert-match -- "^univention-container-mode" && {
 				systemctl stop --force -- ${service} || /bin/true
 			}
 		done
@@ -92,13 +92,20 @@ if [[ -e /var/univention-join/joined ]]; then
 		#
 		# start all univention service unit(s)
 		for service in $(find /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system -type l -name univention* -exec basename {} \;); do
-			echo ${service} | egrep --silent --invert-match "^univention-container-mode" && {
+			echo ${service} | egrep --quiet --invert-match -- "^univention-container-mode" && {
 				systemctl start -- ${service} || /bin/true
 			}
 		done
 		#
-		# restart univention-container-mode-fixes
+		# restart univention-container-mode-fixes service unit
 		systemctl restart -- univention-container-mode-fixes.service
+		#
+		# start univention-container-mode-backup and univention-container-mode-joined service units
+		univention-check-join-status 2>&1 | egrep --quiet -- "^Joined successfully" && {
+			systemctl start -- \
+				univention-container-mode-backup.service \
+				univention-container-mode-joined.service &
+		}
 		#
 		# reload systemd daemon
 		systemctl daemon-reload

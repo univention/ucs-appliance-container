@@ -58,6 +58,31 @@ function netmask() { # netmask: IN(cidr) => OUT(netmask)
 	echo ${mask}
 }
 #
+function EGrepLdapAddExcludeAttributeFilter() { # EGrepLdapAddExcludeAttributeFilter: stdin/stdout ( pipe )
+	local filter="(structuralObjectClass|entryUUID|creatorsName|createTimestamp|entryCSN|modifiersName|modifyTimestamp|lockTime)"
+	#
+	# filter invalide ldif/ldapadd attributes
+	# filter from diff ( if we don't have any function arguments )
+	#  --unified  (egrep -- "^\+") | cut -c 2-
+	#  --new-file (egrep --invert-match -- "^\+\+\+")
+	#    ignore # (egrep --invert-match -- "^\+#")
+	[[ "${#@}" -eq 0 || -z "${@}" ]] &&
+		egrep -- "^\+" | egrep --invert-match -- "^\+\+\+" | egrep --invert-match -- "^\+#" | cut -c 2- |
+		egrep \
+			--invert-match -- ${filter} ||
+		egrep ${@} \
+			--invert-match -- ${filter}
+}
+#
+function UniventionInstallCleanUp() { # UniventionInstallCleanUp: void
+	for name in "dpkg-dist" "debian"; do
+		find /etc \
+			-type f \
+			-name "*.${name}" \
+			-exec rm --force --verbose {} \;
+	done
+}
+#
 function UniventionInstallLock() { # UniventionInstallLock: IN(${@})
 	local counter=1
 	local repeat=720
@@ -83,14 +108,27 @@ function UniventionInstallLock() { # UniventionInstallLock: IN(${@})
 function UniventionAddApp() { # UniventionAddApp: IN(${@})
 	[[ "${#@}" -eq 0 || -z "${@}" ]] && return 1
 	[[ "${#@}" -eq 0 || -z "${@}" ]] || {
+		local timeout=1200
+
+		UniventionDistUpdate >/dev/null 2>&1
 
 		if command -v univention-app; then
 			univention-app update
-			univention-app install --noninteractive ${@}
+			if [[ "$(ucr get server/role)" == "domaincontroller_master" ]]; then
+				timeout ${timeout} univention-app install --noninteractive \
+					${@}
+			else
+				timeout ${timeout} univention-app install --noninteractive \
+					--username ${dcuser:-Administrator} \
+					--pwdfile <(printf "%s" "${dcpass}") \
+					${@}
+			fi
 		else
 			command -v univention-add-app || return 1
-			univention-add-app --all ${@}
+			timeout ${timeout} univention-add-app --all ${@}
 		fi
+
+		UniventionInstallCleanUp
 	}
 }
 #
@@ -103,16 +141,48 @@ function UniventionInstall() { # UniventionInstall: IN(${@})
 		local repeat=5
 		local sleep=120
 
-		local UniventionSystemInstallCommand="$(ucr get update/commands/install) --autoremove --verbose-versions"
+		local UniventionSystemInstallCommand="$(
+			ucr get update/commands/install | egrep -- ^apt || echo -n "apt-get -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1 install"
+		) --autoremove --verbose-versions"
 
 		UniventionInstallLock ${UniventionSystemInstallCommand} ${@}
 
 		debug "${UniventionSystemInstallCommand} ${@}"
-		while ! timeout ${timeout} ${UniventionSystemInstallCommand} ${@} | egrep --invert-match "^[WE]:"; do
-			[[ ${counter} > ${repeat} ]] && echo "%s" "\nTIMEOUT(${UniventionSystemInstallCommand} ${@})" && return 1
+		while ! timeout ${timeout} ${UniventionSystemInstallCommand} ${@} | egrep --invert-match -- "^[WE]:"; do
+			[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionSystemInstallCommand} ${@})" && return 1
 			counter=$((${counter} + 1))
 			sleep ${sleep}
 		done
+
+		UniventionInstallCleanUp
+	}
+}
+#
+function UniventionInstallNoRecommends() { # UniventionInstallNoRecommends: IN(${@})
+	[[ "${#@}" -eq 0 || -z "${@}" ]] && return 1
+	[[ "${#@}" -eq 0 || -z "${@}" ]] || {
+		local timeout=600
+
+		local counter=1
+		local repeat=3
+		local sleep=120
+
+		local UniventionSystemInstallCommand="$(
+			ucr get update/commands/install | egrep -- ^apt || echo -n "apt-get -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1 install"
+		) --no-install-recommends --verbose-versions"
+
+		UniventionDistUpdate >/dev/null 2>&1
+		UniventionInstallLock ${UniventionSystemInstallCommand} ${@}
+
+		debug "${UniventionSystemInstallCommand} ${@}"
+		while ! timeout ${timeout} ${UniventionSystemInstallCommand} ${@} | egrep --invert-match -- "^[WE]:"; do
+			[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionSystemInstallCommand} ${@})" && return 1
+			counter=$((${counter} + 1))
+			sleep ${sleep}
+		done
+
+		apt-mark auto ${@}
+		UniventionInstallCleanUp
 	}
 }
 #
@@ -123,13 +193,18 @@ function UniventionDistUpdate() { # UniventionDistUpdate: void
 	local repeat=6
 	local sleep=30
 
-	local UniventionSystemDistUpdateCommand=$(ucr get update/commands/update)
+	local UniventionSystemDistUpdateCommand=$(
+		ucr get update/commands/update | egrep -- ^apt || echo -n "apt-get update"
+	)
+
+	egrep --quiet --recursive -- Traceback /etc/apt/sources.* &&
+		UniventionResetRepositoryOnline
 
 	UniventionInstallLock ${UniventionSystemDistUpdateCommand}
 
 	debug "${UniventionSystemDistUpdateCommand}"
-	while ! timeout ${timeout} ${UniventionSystemDistUpdateCommand} | egrep --invert-match "^[WE]:"; do
-		[[ ${counter} > ${repeat} ]] && echo "%s" "\nTIMEOUT(${UniventionSystemDistUpdateCommand})" && return 1
+	while ! timeout ${timeout} ${UniventionSystemDistUpdateCommand} | egrep --invert-match -- "^[WE]:"; do
+		[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionSystemDistUpdateCommand})" && return 1
 		counter=$((${counter} + 1))
 		sleep ${sleep}
 	done
@@ -146,16 +221,65 @@ function UniventionDistUpgrade() { # UniventionDistUpgrade: void
 	local repeat=3
 	local sleep=120
 
-	local UniventionSystemDistUpgradeCommand=$(ucr get update/commands/distupgrade)
+	local UniventionSystemDistUpgradeCommand=$(
+		ucr get update/commands/distupgrade | egrep -- ^apt || echo -n "apt-get -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1 dist-upgrade"
+	)
 
 	UniventionInstallLock ${UniventionSystemDistUpgradeCommand}
 
 	debug "${UniventionSystemDistUpgradeCommand}"
 	while ! timeout ${timeout} ${UniventionSystemDistUpgradeCommand} 2>&1; do
-		[[ ${counter} > ${repeat} ]] && echo "%s" "\nTIMEOUT(${UniventionSystemDistUpgradeCommand})" && return 1
+		[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionSystemDistUpgradeCommand})" && return 1
 		counter=$((${counter} + 1))
 		sleep ${sleep}
 	done
+}
+#
+function UniventionResetRepositoryOnline() { # UniventionResetRepositoryOnline: void
+	local timeout=45
+
+	local counter=1
+	local repeat=99
+	local sleep=15
+
+	local UniventionResetRepositoryOnlineCommand="univention-config-registry set repository/online"
+
+	${UniventionResetRepositoryOnlineCommand}=false
+
+	while timeout ${timeout} ${UniventionResetRepositoryOnlineCommand}=true &&
+		egrep --quiet --recursive -- Traceback /etc/apt/sources.*; do
+		[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionResetRepositoryOnlineCommand})" && return 1
+		counter=$((${counter} + 1))
+		sleep ${sleep} && ${UniventionResetRepositoryOnlineCommand}=false
+	done
+}
+#
+function UniventionCheckJoinStatus() { # UniventionCheckJoinStatus: void
+
+	# get dcaccount or set Administrator as default
+	local dcaccount=${dcuser:-Administrator}
+
+	# set dcpwd as fallback ( Message:  Invalid credentials ... )
+	local dcpwd=/dev/shm/univention-container-mode.dcpwd.credentials
+
+	printf "%s" "${dcpass:-}" > \
+		${dcpwd}
+
+	univention-check-join-status 2>&1 | egrep --quiet -- "^Joined successfully" || {
+		if [[ "$(ucr get server/role)" == "domaincontroller_master" ]]; then
+			univention-run-join-scripts
+		else
+			univention-run-join-scripts \
+				-dcaccount ${dcaccount} \
+				-dcpwd <(printf "%s" "${dcpass:-}") ||
+				univention-run-join-scripts \
+					-dcaccount ${dcaccount} \
+					-dcpwd ${dcpwd} || /bin/true
+		fi
+	}
+
+	# cleanup
+	rm --force ${dcpwd}
 }
 #
 function UniventionConfigRegistryUnSet() { # UniventionConfigRegistryUnSet: IN(${ucrremoves[@]})

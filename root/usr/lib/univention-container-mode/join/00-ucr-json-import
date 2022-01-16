@@ -59,12 +59,9 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 [[ -z ${registry:-} ]] || {
 	json=jq
 
-	which ${json} >/dev/null 2>&1 || {
-		apt-get --verbose-versions --assume-yes --no-install-recommends install ${json}
-		apt-mark auto ${json}
-	}
+	command -v ${json} >/dev/null 2>&1 || UniventionInstallNoRecommends ${json}
 
-	which ${json} >/dev/null 2>&1 && {
+	command -v ${json} && {
 		JSON="${json} --raw-output"
 		echo ${registry} | ${JSON} 'keys | .[]' >/dev/null 2>&1 &&
 			for key in $(echo ${registry} | ${JSON} 'keys | .[]'); do

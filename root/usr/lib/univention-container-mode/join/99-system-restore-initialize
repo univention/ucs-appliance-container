@@ -1,0 +1,279 @@
+#!/bin/bash
+#
+# Univention Container Mode - system-restore-initialize
+#
+# Copyright 2020-2021 Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+eval "$(ucr shell hostname domainname ldap/base server/role backup/clean/min/backups)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## system restore initialize from container mode environment
+#  only for Primary Directory Node ( legacy term: "master" )
+#   => fix docker-compose pull && docker-compose up
+#    => look univention-container-mode-backup.service and
+#    => look univention-container-mode-restore.service too
+#
+restore=/var/backups/univention-container-mode
+#
+json=jq
+rsync=rsync
+tar=tar
+#
+# install all commands we need for restore/recreate to save time douring the shutdown
+for command in ${json} ${rsync} ${tar}; do
+	command -v ${command} >/dev/null 2>&1 || UniventionInstall ${command}
+done
+#
+command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && command -v ${tar} >/dev/null 2>&1 && {
+	RSYNC="${rsync} --archive --delete"
+	TAR="${tar} --create --overwrite"
+	#
+	[[ ${BACKUPS-} =~ ^1|yes|true|YES|TRUE$ ]] && mkdir --parents ${restore}
+	#
+	# check if we have a mountpoint or even a directory to store the rudimentary backup
+	mountpoint --quiet ${restore} || [[ -d ${restore} ]] && univention-check-join-status 2>&1 |
+		egrep --quiet -- "^Joined successfully" && {
+		### START(Exit immediately if a command exits with a non-zero status)
+		set -e
+		#
+		if [[ ${server_role} =~ ^(domaincontroller_master|domaincontroller_backup)$ ]]; then
+			mkdir --parents ${restore}/{bind,certificates,connectors,cups,ldap,packages,registry,samba,saml,ssh,secrets}
+		else
+			mkdir --parents ${restore}/{packages,registry,samba,saml,ssh,secrets}
+		fi
+		#
+		[[ -d ${restore}/bind ]] && {
+			# save local nameserver configurations
+			${RSYNC} /etc/bind ${restore}/bind/etc
+		}
+		[[ -d ${restore}/certificates ]] && {
+			# save local certificates
+			/bin/bash /usr/lib/univention-container-mode/certificates --maximum >/dev/null 2>&1 &&
+				${RSYNC} /etc/univention/ssl/ ${restore}/certificates
+		}
+		[[ -d ${restore}/connectors ]] && {
+			# save local connector(s)
+			for dir in $(find /var/lib -maxdepth 1 -type d -name *connector*); do
+				${RSYNC} ${dir}/ ${restore}/connectors/$(basename ${dir})
+			done
+		}
+		[[ -d /etc/cups ]] || rm --recursive --force ${restore}/cups
+		[[ -d ${restore}/cups ]] && {
+			# save local cups ( ppd, ... )
+			${RSYNC} /etc/cups ${restore}/cups/etc
+		}
+		[[ -d ${restore}/ldap ]] && {
+			# save LDAP /etc config directory
+			${RSYNC} /etc/ldap ${restore}/ldap/etc
+			# save LDAP as LDIF ( ignore "No dynamic config support for overlay" )
+			slapcat -n 0 -f /etc/ldap/slapd.conf -l \
+				${restore}/ldap/slapcat.config.ldif 2>/dev/null || rm --force \
+				${restore}/ldap/slapcat.config.ldif
+			# save LDAP as LDIF ( database )
+			slapcat -n 1 -f /etc/ldap/slapd.conf -l \
+				${restore}/ldap/slapcat.database.ldif
+			# save LDAP as LDIF ( translog )
+			slapcat -n 2 -f /etc/ldap/slapd.conf -l \
+				${restore}/ldap/slapcat.translog.ldif
+			# save LDAP as LDIF ( ldapsearch )
+			(
+				ldapsearch -LLL -D cn=admin,${ldap_base} -y /etc/ldap.secret 2>/dev/null ||
+					ldapsearch -LLL -D cn=backup,${ldap_base} -y /etc/ldap-backup.secret
+			) > \
+				${restore}/ldap/ldapsearch.ldif
+			# save LDAP local schema
+			${RSYNC} /var/lib/univention-ldap/local-schema ${restore}/ldap/schema
+		}
+		[[ -d ${restore}/packages ]] && {
+			# save package selection from dpkg --get-selections
+			dpkg --get-selections > \
+				${restore}/packages/dpkg.selection
+			# save package list from dpkg-query --list --no-pager
+			#  ( --no-pager since UCS 5.0-0 )
+			dpkg-query --list --no-pager > \
+				${restore}/packages/dpkg.list ||
+				dpkg-query --list > \
+					${restore}/packages/dpkg.list
+		}
+		[[ -d ${restore}/registry ]] && {
+			# save config registry
+			univention-config-registry dump > \
+				${restore}/registry/registry.dump
+			${RSYNC} /etc/univention/base*conf \
+				${restore}/registry/
+		}
+		[[ -d ${restore}/samba ]] && {
+			#
+			SambaDatabasesExcludeKeyFilter=(netlogon\_creds\_cli)
+			#
+			# save samba ( drivers, netlogon, printers, private, sysvol )
+			for dir in $(find /var/lib/samba -maxdepth 1 -type d); do
+				# save separate archives with all databases included
+				[[ ${dir} =~ (samba|private)$ ]] && {
+					# force recreate backup databases ( *.(l|t)db.bak )
+					find ${dir} \
+						-type f \
+						-regextype posix-egrep -regex ".*\.(l|t)db$" -and -not -regex ".*${SambaDatabasesExcludeKeyFilter}\.(l|t)db$" \
+						-exec rm --force {}.bak \; -exec tdbbackup {} \; 2>/dev/null
+					# save databases and backup databases in once (
+					#  => ignore   : file changed as we read it
+					#  => transform: *.(l|t)db.bak to *.(l|t)db
+					# )
+					cd / &&
+						find ${dir/\//} \
+							-type f \
+							-regextype posix-egrep -regex ".*\.(l|t)db($|.bak$)" \
+							-exec ${TAR} --transform 's/.bak$//' --warning=no-file-changed --file=${restore}/samba/$(basename ${dir}).databases.xz --xz {} \+
+					cd ${OLDPWD:-/usr/lib/univention-container-mode}
+				}
+				[[ ${dir} =~ private$ ]] && {
+					${RSYNC} --exclude=*.sock --exclude=ldap* ${dir}/ ${restore}/samba/$(basename ${dir})
+				}
+				[[ ${dir} =~ (drivers|DriverStore|netlogon|printers|sysvol)$ ]] && {
+					${RSYNC} --acls ${dir}/ ${restore}/samba/$(basename ${dir})
+					getfacl --recursive ${dir} >${restore}/samba/$(basename ${dir}).facl 2>/dev/null
+				}
+				[[ ${dir} =~ sysvol$ ]] && {
+					getfacl --recursive /home >${restore}/samba/home.facl 2>/dev/null
+				}
+			done
+			# save acl(s) for local share(s)
+			for share in $(udm shares/share list --filter "(host=${hostname}.${domainname})" | awk '/ name\:/{ print $2 }'); do
+				dir=$(udm shares/share list --filter "(&(host=${hostname}.${domainname})(name=${share}))" | awk '/ path\:/{ print $2 }')
+				[[ -d ${dir} ]] || continue && {
+					getfacl --recursive ${dir} >${restore}/samba/$(basename ${dir}).${share}.facl 2>/dev/null
+				}
+			done
+			# use samba-tool offline/local backup if we have a real DC
+			[[ -f /var/lib/samba/private/sam.ldb ]] && {
+				# backup and move to static file ( no timestamp ) or force remove it
+				samba-tool domain backup offline --targetdir=${restore}/samba &&
+					mv --force --verbose \
+						${restore}/samba/samba-backup-*tar.bz2 \
+						${restore}/samba/domain-backup.tar.bz2 ||
+					rm --force --verbose \
+						${restore}/samba/samba-backup-*tar.bz2
+			}
+			# save samba config file(s)
+			${RSYNC} /etc/samba ${restore}/samba/etc
+		}
+		[[ -d ${restore}/saml ]] && {
+			# save SAML /etc config directory
+			${RSYNC} /etc/simplesamlphp ${restore}/saml/etc
+		}
+		[[ -d ${restore}/ssh ]] && {
+			# save all ssh keys ( private and public )
+			${RSYNC} /etc/ssh/ssh_host_*key* ${restore}/ssh/
+		}
+		[[ -d ${restore}/secrets ]] && {
+			# save all local secret(s)
+			${RSYNC} /etc/*.secret* ${restore}/secrets/
+			# save all local keytab(s)
+			cd / &&
+				find {etc,opt,usr,var} \
+					-type f \
+					-regextype posix-egrep -regex ".*\.keytab$" -and -not -regex "${restore/\//}.*" \
+					-exec ${TAR} --file=${restore}/secrets/keytab.xz --xz {} \+
+			cd ${OLDPWD:-/usr/lib/univention-container-mode}
+		}
+		#
+		# INFO: systemd service unit univention-container-mode-backup
+		#  - will remove this file on each start!
+		#  - will create this file on each stopp!
+		touch ${restore}/restore &&
+			printf "%s" $(ucr get version/version).$(ucr get version/patchlevel) > \
+				${restore}/restore
+		#
+		set +e
+		### STOPP(Exit immediately if a command exits with a non-zero status)
+		#
+		${TAR} --directory=${restore} --file=${restore}.xz --xz .
+		#
+		mountpoint --quiet ${restore} || {
+			#
+			# remove backups older then ${backup_clean_min_backups:-120} days
+			find $(dirname ${restore}) \
+				-maxdepth 1 \
+				-mtime +${backup_clean_min_backups:-120} \
+				-type f \
+				-name $(basename ${restore}).*.xz \
+				-delete
+			#
+			# backup loop: check the available space too ( df -- available space )
+			[[ -f ${restore}.xz ]] && {
+				[[ $(df $(dirname ${restore}) | awk '/^\//{ print $4 }') -gt $(stat --printf="%s" ${restore}.xz) ]] &&
+					${RSYNC} \
+						${restore}.xz \
+						${restore}.$(date --utc +%FT%T.%3NZ).xz
+			}
+		}
+	}
+}
+#
+## system restore initialize from container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	ldap_base \
+	server_role \
+	hostname domainname \
+	backup_clean_min_backups \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

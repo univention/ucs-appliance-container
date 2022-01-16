@@ -56,7 +56,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 ## NFS server for container mode environment
 #
 for i in disable mask; do
-	systemctl ${i} -- nfs-server.service || /bin/true
+	systemctl ${i} -- run-rpc_pipefs.mount rpc-gssd.service nfs-server.service || /bin/true
 done
 #
 ## NFS server for container mode environment

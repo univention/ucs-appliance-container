@@ -74,6 +74,7 @@ UniventionConfigCommit ${ucrcommit[@]}
 
 ## cleanup
 unset \
+	license \
 	ucrchanges ucrremoves ucrcounter ucrcommit
 
 debug "### CLEAN SCRIPT($(pwd)/$0) ###"

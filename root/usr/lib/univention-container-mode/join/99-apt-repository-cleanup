@@ -61,16 +61,16 @@ for package in univention-welcome-screen; do
 	apt-mark auto ${package} >/dev/null 2>&1 || /bin/true
 done
 #
-# run second system update
+# run system update
 UniventionDistUpdate
 #
-# run second system dist-upgrade and autoremove
+# run system dist-upgrade and autoremove
 UniventionDistUpgrade
 apt-cache search . >/dev/null 2>&1
 apt-get autoremove --assume-yes >/dev/null 2>&1
 #
 # don't clean external packages cache
-mountpoint /var/cache/apt/archives >/dev/null 2>&1 || {
+mountpoint --quiet /var/cache/apt/archives >/dev/null 2>&1 || {
 	apt-get autoclean >/dev/null 2>&1
 	apt-get clean >/dev/null 2>&1
 }

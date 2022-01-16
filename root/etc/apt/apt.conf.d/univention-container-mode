@@ -1,0 +1,10 @@
+# https://github.com/debuerreotype/debuerreotype ( --slimify )
+#  docker run --rm debian:10-slim cat /etc/apt/apt.conf.d/docker-clean
+#
+
+# don't clean external package cache
+DPkg::Post-Invoke        { "mountpoint -q /var/cache/apt || rm -f /var/cache/apt/archives/*.deb /var/cache/apt/archives/partial/*.deb /var/cache/apt/*.bin || true"; };
+APT::Update::Post-Invoke { "mountpoint -q /var/cache/apt || rm -f /var/cache/apt/archives/*.deb /var/cache/apt/archives/partial/*.deb /var/cache/apt/*.bin || true"; };
+
+Dir::Cache::pkgcache "";
+Dir::Cache::srcpkgcache "";

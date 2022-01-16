@@ -49,9 +49,12 @@ declare -a ucrremoves
 declare -A ucrcounter
 # ucrcounter[<STRING>]=<INT>
 ucrcounter[nameserver]=1
+ucrcounter[forwarder]=1
 
 declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+ucrcommit[postfix.secret]=/etc/listfilter.secret
+ucrcommit[postfix.config]=/etc/postfix/*
 ucrcommit[resolv.conf]=/etc/resolv.conf
 
 debug "### START SCRIPT($(pwd)/$0) ###"
@@ -63,8 +66,8 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 [[ -z ${role:-} ]] && role=master
 
 echo -n ${role} | awk '\
-	 /[a-zA-Z]/{ print "SERVERTYPE("tolower($1)")" } \
-	!/[a-zA-Z]/{ print "SERVERTYPE MISSSPELLED: SET SERVER TO DEFAULT(master). USE ENVIRONMENT( role=<master|slave|backup|member|basesystem> )" }'
+	 /[a-zA-Z]/{ print "SERVER ROLE("tolower($1)")" } \
+	!/[a-zA-Z]/{ print "SERVER ROLE MISSSPELLED: SET ROLE TO DEFAULT(master). USE ENVIRONMENT( role=<master|slave|backup|member> )" }'
 
 role=$(
 	echo -n ${role} | awk '\
@@ -92,12 +95,34 @@ role=$(
 # set root password
 #
 usermod --password $(mkpasswd -H ${password_hashing_method:-SHA-512} "${rootpw}") root
+#
+
+# set nameserver and forwarder if dcwait active
+#
+[[ ${dcwait-} =~ ^1|yes|true|YES|TRUE$ ]] && {
+	#
+	for ns in ${nameserver[@]:-}; do
+		[[ ${ucrcounter[nameserver]} > 3 ]] && break
+		ucrchanges+=("nameserver${ucrcounter[nameserver]}=${ns}")
+		ucrcounter[nameserver]=$((${ucrcounter[nameserver]} + 1))
+	done
+	#
+	for ns in ${forwarder[@]:-}; do
+		[[ ${ucrcounter[forwarder]} > 3 ]] && break
+		ucrchanges+=("dns/forwarder${ucrcounter[forwarder]}=${ns}")
+		ucrcounter[forwarder]=$((${ucrcounter[forwarder]} + 1))
+	done
+	#
+	UniventionConfigRegistrySet ${ucrchanges[@]}
+}
+#
+# set nameserver and forwarder if dcwait active
 
 # check for system role package
 #
 UniventionSystemInstallSystemRolePrefix="univention-server-"
 UniventionSystemInstallSystemRole=$(
-	apt-cache search ${UniventionSystemInstallSystemRolePrefix} | egrep "^${UniventionSystemInstallSystemRolePrefix}${role}\s" |
+	apt-cache search ${UniventionSystemInstallSystemRolePrefix} | egrep -- "^${UniventionSystemInstallSystemRolePrefix}${role}\s" |
 		awk '\
 				 /^'${UniventionSystemInstallSystemRolePrefix}${role}'/{ printf $1 } \
 				!/^'${UniventionSystemInstallSystemRolePrefix}${role}'/{ printf "" }'
@@ -120,6 +145,10 @@ UniventionSystemInstallSystemRole=$(
 			"ldap/master=${hostname}.${domainname}" \
 			"kerberos/adminserver=${hostname}.${domainname}"
 		#
+		# mail/postfix/mydestination ( <Domain Users with mailPrimaryAddress>@${domainname} )
+		univention-config-registry set \
+			mail/postfix/mydestination='$mydomain, $myhostname, localhost.$mydomain, localhost'
+		#
 		# master join
 		mkdir --parents /var/univention-join /usr/share/univention-join && {
 			touch /var/univention-join/joined && ln --symbolic --force /var/univention-join/joined /usr/share/univention-join/.joined
@@ -135,17 +164,25 @@ UniventionSystemInstallSystemRole=$(
 		rm --force ${secret}
 	else
 		[[ -z ${dcname:-} ]] && ERROR=TRUE || ERROR=FALSE
-		[[ -z ${dcuser:-} ]] && ERROR=TRUE
 		[[ -z ${dcpass:-} ]] && ERROR=TRUE
 
 		[[ ${ERROR} =~ ^TRUE$ ]] &&
-			echo "SERVERTYPE(${role}) NEED DOMAIN-CONTROLLER(dcname=<STRING(HOST)>) USER-ACCOUNT(dcuser=<STRING>) AND PASSWORD(dcpass=<STRING>)"
+			echo "SERVER ROLE(${role}) NEED DOMAIN-CONTROLLER(dcname=<STRING(HOST)>) USER-ACCOUNT(dcuser=<STRING|DEFAULT(Administrator)>) AND PASSWORD(dcpass=<STRING>)"
+
+		[[ ${ERROR} =~ ^FALSE$ ]] && [[ ${dcwait-} =~ ^1|yes|true|YES|TRUE$ ]] && {
+			printf "%s" "Wait for a primary directory node forever! ( http://${dcname}/joined ) .."
+			while ! curl --silent --fail --output /dev/null http://${dcname}/joined; do
+				printf "%c" "." && sleep 30
+			done
+			printf "\n"
+		}
 
 		[[ ${ERROR} =~ ^FALSE$ ]] &&
 			/usr/share/univention-join/univention-join \
 				-dcname ${dcname} \
-				-dcaccount ${dcuser} \
-				-dcpwd <(echo -n ${dcpass})
+				-dcaccount ${dcuser:-Administrator} \
+				-dcpwd <(printf "%s" "${dcpass}")
+
 	fi
 #
 ## Setup join from container mode environment

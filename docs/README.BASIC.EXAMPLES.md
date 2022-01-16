@@ -30,7 +30,8 @@ FQDN=dc.ucs.example; \
     --cap-add CAP_MKNOD \
     --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
     --tmpfs /run \
-    --tmpfs /tmp \
+    --tmpfs /run/lock \
+    --tmpfs /tmp:exec \
     --restart unless-stopped \
     --hostname ${FQDN} \
     --name ${FQDN} \
@@ -40,7 +41,7 @@ FQDN=dc.ucs.example; \
 ```bash
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow --unit univention-container-mode-firstboot.service
 ...
-Joined successfully
+univention-check-join-status: Joined successfully
 ...
 
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow
@@ -54,7 +55,7 @@ Analyze the running time of deploy with ```( systemd-analyze blame )```.
 ```bash
 docker exec --interactive --tty ${FQDN} /bin/bash -c 'systemd-analyze --no-pager blame | egrep univention-container-mode-firstboot'
 ...
-  19min 5.546s univention-container-mode-firstboot.service
+  12min 8.701s univention-container-mode-firstboot.service
 ...
 ```
 #### check the join status
@@ -87,7 +88,8 @@ MASTER=dc.ucs.example; FQDN=s${MASTER}; \
     --cap-add CAP_MKNOD \
     --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
     --tmpfs /run \
-    --tmpfs /tmp \
+    --tmpfs /run/lock \
+    --tmpfs /tmp:exec \
     --restart unless-stopped \
     --env role=slave \
     --env nameserver="$(docker inspect -f '{{.NetworkSettings.GlobalIPv6Address}} {{.NetworkSettings.IPAddress}}' ${MASTER})" \
@@ -102,7 +104,7 @@ MASTER=dc.ucs.example; FQDN=s${MASTER}; \
 ```bash
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow --unit univention-container-mode-firstboot.service
 ... 
-Joined successfully
+univention-check-join-status: Joined successfully
 ...
 
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow
@@ -116,7 +118,7 @@ Analyze the running time of deploy with ```( systemd-analyze blame )```.
 ```bash
 docker exec --interactive --tty ${FQDN} /bin/bash -c 'systemd-analyze --no-pager blame | egrep univention-container-mode-firstboot'
 ...
-  14min 45.716s univention-container-mode-firstboot.service
+  10min 44.468s univention-container-mode-firstboot.service
 ...
 ```
 #### check the join status
@@ -147,7 +149,8 @@ MASTER=dc.ucs.example; FQDN=b${MASTER}; \
     --cap-add CAP_MKNOD \
     --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
     --tmpfs /run \
-    --tmpfs /tmp \
+    --tmpfs /run/lock \
+    --tmpfs /tmp:exec \
     --restart unless-stopped \
     --env role=backup \
     --env nameserver="$(docker inspect -f '{{.NetworkSettings.GlobalIPv6Address}} {{.NetworkSettings.IPAddress}}' ${MASTER})" \
@@ -162,7 +165,7 @@ MASTER=dc.ucs.example; FQDN=b${MASTER}; \
 ```bash
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow --unit univention-container-mode-firstboot.service
 ... 
-Joined successfully
+univention-check-join-status: Joined successfully
 ...
 
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow
@@ -176,7 +179,7 @@ Analyze the running time of deploy with ```( systemd-analyze blame )```.
 ```bash
 docker exec --interactive --tty ${FQDN} /bin/bash -c 'systemd-analyze --no-pager blame | egrep univention-container-mode-firstboot'
 ...
-  20min 4.642s univention-container-mode-firstboot.service
+  11min 52.067s univention-container-mode-firstboot.service
 ...
 ```
 #### check the join status
@@ -207,7 +210,8 @@ MASTER=dc.ucs.example; FQDN=m${MASTER}; \
     --cap-add CAP_MKNOD \
     --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
     --tmpfs /run \
-    --tmpfs /tmp \
+    --tmpfs /run/lock \
+    --tmpfs /tmp:exec \
     --restart unless-stopped \
     --env role=member \
     --env nameserver="$(docker inspect -f '{{.NetworkSettings.GlobalIPv6Address}} {{.NetworkSettings.IPAddress}}' ${MASTER})" \
@@ -222,7 +226,7 @@ MASTER=dc.ucs.example; FQDN=m${MASTER}; \
 ```bash
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow --unit univention-container-mode-firstboot.service
 ... 
-Joined successfully
+univention-check-join-status: Joined successfully
 ...
 
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow
@@ -236,7 +240,7 @@ Analyze the running time of deploy with ```( systemd-analyze blame )```.
 ```bash
 docker exec --interactive --tty ${FQDN} /bin/bash -c 'systemd-analyze --no-pager blame | egrep univention-container-mode-firstboot'
 ...
-  14min 37.323s univention-container-mode-firstboot.service
+  9min 11.490s univention-container-mode-firstboot.service
 ...
 ```
 #### check the join status
@@ -256,54 +260,3 @@ PASSWORD FOR HOST(mdc.ucs.example) WITH ROLE(memberserver):
 	LOCAL USER: USER(root)          PASS(ADm1nAndRo0tPaSSw0rdFoRsYst3mRoleMaSt3r)
 ...
 ```
-
-### ~~Basesystem, default with minimum environment and auto generated root password~~[^1]
-#### deploy ```HOSTNAME(basesystem) DOMAINNAME(unassigned.invalid) CONTAINERNAME(basesystem.unassigned.invalid)```
-```bash
-FQDN=basesystem.unassigned.invalid; \
-  docker run \
-    --detach \
-    --cap-add SYS_ADMIN \
-    --cap-add CAP_MKNOD \
-    --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
-    --tmpfs /run \
-    --tmpfs /tmp \
-    --restart unless-stopped \
-    --env role=basesystem \
-    --hostname ${FQDN} \
-    --name ${FQDN} \
-      univention-corporate-server
-```
-#### follow deploying proccess with one or more of these commands ```(CTRL+C OR CTRL+D TO EXIT)```
-```bash
-docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow --unit univention-container-mode-firstboot.service
-...
-Started Univention container mode firstboot
-...
-
-docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow
-docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow --unit univention-container-mode-init.service
-
-docker exec --interactive --tty ${FQDN} watch -n 0,5 ps -axf
-
-docker exec --interactive --tty ${FQDN} /bin/bash
-```
-Analyze the running time of deploy with ```( systemd-analyze blame )```.
-```bash
-docker exec --interactive --tty ${FQDN} /bin/bash -c 'systemd-analyze --no-pager blame | egrep univention-container-mode-firstboot'
-...
-  2min 10.057s univention-container-mode-firstboot.service
-...
-```
-#### get generated secrets
-```bash
-docker exec --interactive --tty ${FQDN} /bin/bash /usr/lib/univention-container-mode/secrets
-...
-removed '/dev/shm/univention-container-mode.secrets'
-
-PASSWORD FOR HOST(basesystem.unassigned.invalid) WITH ROLE(basesystem):
-	LOCAL USER: USER(root)          PASS(ADm1nAndRo0tPaSSw0rdFoRsYst3mRoleMaSt3r)
-...
-```
-
-[^1]: Since UCS version 5.x, the basesystem is omitted!

@@ -68,7 +68,7 @@ role=$(
 #
 UniventionSystemInstallSystemRolePrefix="univention-server-"
 UniventionSystemInstallSystemRole=$(
-	apt-cache search ${UniventionSystemInstallSystemRolePrefix} | egrep "^${UniventionSystemInstallSystemRolePrefix}${role}\s" |
+	apt-cache search ${UniventionSystemInstallSystemRolePrefix} | egrep -- "^${UniventionSystemInstallSystemRolePrefix}${role}\s" |
 		awk '\
 			 /^'${UniventionSystemInstallSystemRolePrefix}${role}'/{ printf $1 } \
 			!/^'${UniventionSystemInstallSystemRolePrefix}${role}'/{ printf "" }'
@@ -76,15 +76,7 @@ UniventionSystemInstallSystemRole=$(
 #
 [[ -z ${UniventionSystemInstallSystemRole} ]] && echo "MISSING PACKAGE(${UniventionSystemInstallSystemRolePrefix}${role}) ... exit(1)" && exit 1
 [[ -z ${UniventionSystemInstallSystemRole} ]] || {
-	# fix missing dependencies from univention-server-overview for UCS 5.x ( Debian Buster )
-	#  => unknown module portals/entry from /usr/lib/univention-install/35univention-server-overview.inst
-	#   => add package univention-portal
-	#
-	ucr get version/version | egrep --silent -- ^5 &&
-		UniventionSystemInstallSystemRole="univention-portal ${UniventionSystemInstallSystemRole}"
-
 	# apt-get install univention-server-${role} && ucr set server/role
-	#
 	UniventionInstall ${UniventionSystemInstallSystemRole} && {
 		if [[ "${role}" != "member" ]]; then
 			univention-config-registry set "server/role=domaincontroller_${role}"

@@ -39,6 +39,8 @@ ConditionVirtualization=container
 ConditionPathExists=/dev/shm/univention-container-mode.env
 ConditionPathExists=/usr/lib/univention-container-mode
 ConditionPathExists=!/var/univention-join/joined
+ConditionPathExists=!/var/univention-join/status
+ConditionPathExists=!/etc/univention/base.conf
 
 [Service]
 Type=oneshot
@@ -46,11 +48,10 @@ TimeoutSec=0
 RemainAfterExit=yes
 EnvironmentFile=/dev/shm/univention-container-mode.env
 WorkingDirectory=/usr/lib/univention-container-mode
-ExecStart=/bin/sh     -c 'run-parts --verbose -- join  || /bin/true'
-ExecStartPost=/bin/sh -c 'univention-check-join-status || /bin/true'
-
-# If we don't have a basesystem
-#ExecStart=/bin/bash -c 'run-parts --verbose -- join && univention-check-join-status'
+ExecStart=-/usr/bin/run-parts --verbose -- join
+ExecStartPost=/usr/sbin/univention-check-join-status
+ExecStartPost=-/usr/bin/systemctl \
+  stop -- univention-container-mode-environment.service
 
 [Install]
 WantedBy=multi-user.target

@@ -38,11 +38,14 @@ After=slapd.service network.target
 ConditionVirtualization=container
 ConditionPathExists=/etc/init.d
 ConditionPathExists=/var/univention-join/joined
+ConditionPathExists=/var/univention-join/status
+ConditionPathExists=/etc/univention/base.conf
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/bin/sh -c 'sleep 3 && find /etc/init.d -executable -name univention* -type f -exec {} start \\;'
+ExecStart=/bin/sh -c 'sleep 3 && find /etc/init.d -executable -name stunnel* -type f -exec {} start \\;'
 
 [Install]
 WantedBy=multi-user.target

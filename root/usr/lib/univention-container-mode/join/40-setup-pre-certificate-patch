@@ -1,0 +1,195 @@
+#!/bin/bash
+# https://forge.univention.org/bugzilla/show_bug.cgi?id=54311
+#
+# Univention Container Mode - setup-pre-certificate-patch
+#
+# Copyright 2020-2021 Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+# eval "$(ucr shell hostname domainname)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## Certificates patche for container mode environment
+#
+# /usr/sbin/univention-certificate
+#  ToDo:   flock --unlock ${FD} ??? ( completed )
+#   => Fix flock --exclusive ( Failed to get exclusive lock )
+#   => Fix flock --shared ( Failed to get shared lock )
+#    => Maybe they are a lot of certificates to generate
+#     =>   flock --exclusive with ${FD} ( Was 3 in use? )
+#     =>   flock --shared with ${FD}
+#
+CertificateCommand="univention-certificate"
+CertificatePackage="univention-ssl"
+#
+patch=patch
+#
+# install depend package(s)
+#
+command -v ${CertificateCommand} >/dev/null 2>&1 || UniventionInstallNoRecommends ${CertificatePackage}
+command -v ${patch} >/dev/null 2>&1 || UniventionInstallNoRecommends ${patch}
+
+command -v ${patch} && [[ -f $(command -v ${CertificateCommand} 2>/dev/null | head -1) ]] && ${patch} --backup $(command -v ${CertificateCommand} 2>/dev/null | head -1) <<EOF
+@@ -63,7 +63,7 @@
+ 	exit 1
+ }
+ run_only () {
+-	local role="\$1" mode="\$2"
++	local role="\$1" mode="\${2:-unlock}"
+ 	case "\$role/\$(ucr get server/role)" in
+ 	master/domaincontroller_master) ;;
+ 	backup/domaincontroller_master) ;;
+@@ -76,9 +76,11 @@
+ 	esac
+ 	[ 0 -eq "\$(id -u)" ] ||
+ 		die "Only user 'root' can use this"
+-	exec 3<"\$SSLBASE"
+-	flock -n --"\$mode" 3 ||
+-		die "Failed to get \$mode lock"
++	[ 0 -eq \${#FD} ] &&
++		exec {FD}<\${SSLBASE}
++	for i in {1..99}; do jitter \${i} flock -n --\${mode} \${FD} && return || continue; done
++	flock -n --\${mode} \${FD} ||
++		die "Failed to get \${mode} lock"
+ }
+ 
+ command=
+@@ -109,6 +111,8 @@
+ 
+ . "\${MAKE_CERTIFICATES_SH_INCLUDE:=/usr/share/univention-ssl/make-certificates.sh}"
+ 
++exec {FD}<\${SSLBASE}
++
+ case "\$command" in
+ new|renew) : "\${name:?Missing argument '-name'}" ;;
+ revoke|check|dump)  : "\${name:="\$(get_cert_name_from_id "\$id")"}"
+@@ -129,6 +133,7 @@
+ 			chgrp -R "DC Backup Hosts" "\$SSLBASE/\$name"
+ 			chmod -R g+rX "\$SSLBASE/\$name"
+ 		fi
++		run_only master
+ }
+ 
+ revoke () {
+@@ -139,6 +144,7 @@
+ 		else
+ 			revoke_cert "\$name"
+ 		fi
++		run_only master
+ }
+ 
+ renew () {
+@@ -151,6 +157,7 @@
+ 			chgrp -R "DC Backup Hosts" "\$SSLBASE/\$name"
+ 			chmod -R g+rX "\$SSLBASE/\$name"
+ 		fi
++		run_only master
+ }
+ 
+ check () {
+@@ -170,6 +177,7 @@
+ 			*) echo "invalid" ;;
+ 			esac
+ 		done <<< "\$id"
++		run_only backup
+ 		exit "\$exitcode"
+ }
+ 
+@@ -177,18 +185,21 @@
+ 		run_only backup shared
+ 		echo "List all certificates"
+ 		list_cert_names
++		run_only backup
+ }
+ 
+ list_all () {
+ 		run_only backup shared
+ 		echo "List all certificates (including revoked and expired certificates)"
+ 		list_cert_names_all
++		run_only backup
+ }
+ 
+ update_expired () {
+ 		run_only master exclusive
+ 		echo "Updating db for expired certificates"
+ 		update_db
++		run_only master
+ }
+ 
+ dump () {
+@@ -214,6 +225,7 @@
+ 		chgrp -R "DC Backup Hosts" "\$SSLBASE/\$name"
+ 		chmod -R g+rX "\$SSLBASE/\$name"
+ 	fi
++	run_only master
+ }
+ 
+ "\$command"
+EOF
+
+[[ -f $(command -v ${CertificateCommand} 2>/dev/null | head -1).orig ]] &&
+	apt-mark hold ${CertificatePackage}
+
+#
+## Certificates patche for container mode environment
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

@@ -145,7 +145,8 @@ NETWORK=ucs; FQDN=dc.${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=
     --volume /lib/modules:/lib/modules:ro \
     --cap-add SYS_TIME \
     --tmpfs /run \
-    --tmpfs /tmp \
+    --tmpfs /run/lock \
+    --tmpfs /tmp:exec \
     --restart unless-stopped \
     --ip 172.26.0.2 \
     --ip6 FDFF:172:26:0::2 \
@@ -169,7 +170,8 @@ NETWORK=ucs; FQDN=dc.${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=
     --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
     --volume /lib/modules:/lib/modules:ro \
     --tmpfs /run \
-    --tmpfs /tmp \
+    --tmpfs /run/lock \
+    --tmpfs /tmp:exec \
     --restart unless-stopped \
     --ip 172.26.0.2 \
     --ip6 FDFF:172:26:0::2 \
@@ -187,14 +189,14 @@ NETWORK=ucs; FQDN=dc.${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=
 ```bash
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow --unit univention-container-mode-firstboot.service
 ...
-Joined successfully
+univention-check-join-status: Joined successfully
 ...
 ```
 Analyze the running time of deploy with ```( systemd-analyze blame )```.
 ```bash
 docker exec --interactive --tty ${FQDN} /bin/bash -c 'systemd-analyze --no-pager blame | egrep univention-container-mode-firstboot'
 ...
-  35min 2.468s univention-container-mode-firstboot.service
+  22min 34.035s univention-container-mode-firstboot.service
 ...
 ```
 
