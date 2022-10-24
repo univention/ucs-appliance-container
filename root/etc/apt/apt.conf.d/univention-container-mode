@@ -3,8 +3,8 @@
 #
 
 # don't clean external package cache
-DPkg::Post-Invoke        { "mountpoint -q /var/cache/apt || rm -f /var/cache/apt/archives/*.deb /var/cache/apt/archives/partial/*.deb /var/cache/apt/*.bin || true"; };
-APT::Update::Post-Invoke { "mountpoint -q /var/cache/apt || rm -f /var/cache/apt/archives/*.deb /var/cache/apt/archives/partial/*.deb /var/cache/apt/*.bin || true"; };
+DPkg::Post-Invoke        { "mountpoint -q /var/cache/apt/archives || rm -f /var/cache/apt/archives/*.deb /var/cache/apt/archives/partial/*.deb /var/cache/apt/*.bin || true"; };
+APT::Update::Post-Invoke { "mountpoint -q /var/cache/apt/archives || rm -f /var/cache/apt/archives/*.deb /var/cache/apt/archives/partial/*.deb /var/cache/apt/*.bin || true"; };
 
 Dir::Cache::pkgcache "";
 Dir::Cache::srcpkgcache "";

@@ -206,8 +206,17 @@ It’s always a good idea to save your ``` home ``` and/or ``` root ``` director
 
 If you plan to use [Docker in Docker](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities), try this for a small perfomance boost for any inner containers ( [overlay storage inside overlay storage isn't nice](https://jpetazzo.github.io/2015/09/03/do-not-use-docker-in-docker-for-ci/) ).
 
-STEP 1.) ```mkfs.xfs -f /dev/<EXCLUSIVE-CONTAINER-DISK or EXCLUSIVE-CONTAINER-VOLUME>``` ( **ATTENTION**: ``` mkfs.xfs -f ``` **will force erase the whole disk/volume** )
+SETP 0.) Be sure the module ```xfs``` is permanently loaded in your system or directly in your linux kernel.
+```bash
+modules=/etc/modules; module=xfs; ( lsmod; [[ -f ${modules} ]] && echo $(<${modules}) ) | egrep -- ^${module} || \
+  ( [[ -f ${modules} ]] && echo ${module} >> ${modules}; modprobe ${module} )
+```
+
+STEP 1.) Create your exclusive container disk or volume. ( **ATTENTION**: ``` mkfs.xfs -f ``` **will force erase the whole disk/volume** )
+```bash
+mkfs.xfs -f /dev/<EXCLUSIVE-CONTAINER-DISK or EXCLUSIVE-CONTAINER-VOLUME>
+```
 
 ```bash
---volume /dev/${EXCLUSIVE-CONTAINER-DISK}:/dev/storage:rw
+--device /dev/${EXCLUSIVE-CONTAINER-DISK}:/dev/storage:rw
 ```

@@ -58,32 +58,65 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 UniventionContainerRoleCommon="univention-container-role-common univention-container-role-server-common"
 UniventionDockerContainerMode="univention-docker-container-mode"
 #
-if [[ $(apt-cache depends ${UniventionContainerRoleCommon} | egrep -- "${UniventionDockerContainerMode}$") =~ ${UniventionDockerContainerMode} ]]; then
-	cd /tmp &&
-		for package in ${UniventionContainerRoleCommon}; do
-			# get package, max 3 times ( connection timeout to repository mirror server )
-			apt-get download ${package} || apt-get download ${package} || apt-get download ${package}
-			# get package full name
-			BuildPackage=$(ls -1 ${package}*deb)
-			# extract, change depens and conficts finaly rebuild the package
-			dpkg-deb --raw-extract ${BuildPackage} ${package}
-			[[ -f ${package}/DEBIAN/control ]] && {
-				sed -i --regexp-extended \
-					's/univention\-docker\-container\-mode/univention-pkgdb-tools/g' \
-					${package}/DEBIAN/control
-				sed -i --regexp-extended \
-					's/^(Depends.*univention\-container\-role\-common.*)$/\1, ntp, ntpdate, python-dns, univention-nfs-server, univention-quota, univention-portal/g' \
-					${package}/DEBIAN/control
-			}
-			dpkg-deb --build ${package} /var/cache/apt/archives/${BuildPackage}
-			# install the modified package
-			UniventionInstall /var/cache/apt/archives/${BuildPackage}
-			apt-mark hold ${package}
-			rm --force --recursive --verbose ${package} ${BuildPackage}
-		done
-else
-	UniventionInstall ${UniventionContainerRoleCommon}
-fi
+UniventionRoleCommonRegEx='^\s\s(.*grub.*|.*initrd.*|.*memtest.*|.*linux.*image.*|Conflicts:|\s\s|.*<.*>|.*common$|.*univention-system-setup$|.*univention-network-manager$)'
+#
+command -v ps >/dev/null 2>&1 || UniventionInstall procps
+#
+[[ ! -e /var/univention-join/joined ]] && [[ ! -e /var/univention-join/status ]] &&
+	if dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) lt 5.0.1 || [[ $(ps --no-headers --pid 1 --format command) =~ /sbin/init && $(apt-cache depends ${UniventionContainerRoleCommon} | egrep -- "${UniventionDockerContainerMode}$") =~ ${UniventionDockerContainerMode} ]]; then
+		cd /tmp &&
+			for package in ${UniventionContainerRoleCommon}; do
+				# get package, max 3 times ( connection timeout to repository mirror server )
+				apt-get download ${package} || apt-get download ${package} || apt-get download ${package}
+				# get package full name
+				BuildPackage=$(ls -1 ${package}*deb)
+				# extract, change depens and conficts finaly rebuild the package
+				dpkg-deb --raw-extract ${BuildPackage} ${package}
+
+				[[ -f ${package}/DEBIAN/control ]] &&
+					if [[ ${package} =~ server ]]; then
+						sed -i 's/^Depends.*$/Depends: univention-container-role-common/g' \
+							${package}/DEBIAN/control
+					else
+						sed -i '/^Depends.*$/d' \
+							${package}/DEBIAN/control
+					fi
+
+				dpkg-deb --build ${package} /var/cache/apt/archives/${BuildPackage}
+				# install the modified package
+				UniventionInstall /var/cache/apt/archives/${BuildPackage}
+				apt-mark hold ${package}
+				rm --force --recursive --verbose ${package} ${BuildPackage}
+			done
+	else
+		UniventionInstall ${UniventionContainerRoleCommon}
+	fi
+#
+for package in ${UniventionContainerRoleCommon//-container/}; do
+	cache=/var/cache/univention-container-mode/depends.${package}.md5
+	mkdir --parents $(dirname ${cache}) && touch ${cache}
+
+	OldSum=$(<${cache})
+	NewSum=$(apt-cache depends ${package} 2>/dev/null | md5sum | awk '{ print $1 }')
+
+	[[ "${NewSum}" != "${OldSum}" ]] && {
+		depends=$(
+			apt-cache depends ${package} 2>/dev/null | egrep --invert-match -- ${UniventionRoleCommonRegEx} | awk '/Depends\:/{ printf " %s", $2 }'
+		)
+		recommends=$(
+			apt-cache depends ${package} 2>/dev/null | egrep --invert-match -- ${UniventionRoleCommonRegEx} | awk '/Recommends\:/{ printf " %s", $2 }'
+		)
+
+		if [[ ${package} =~ server ]]; then
+			UniventionInstall ${depends} ${recommends}
+		else
+			UniventionInstall ${depends}
+		fi
+
+		echo ${NewSum} >${cache}
+	}
+
+done
 #
 ## Setup system container role common for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"

@@ -38,7 +38,7 @@ source /usr/lib/univention-container-mode/utils.sh || exit 1
 # }
 
 ## ucr shell
-eval "$(ucr shell hostname domainname server/role)"
+eval "$(ucr shell hostname domainname)"
 
 ## declare
 declare -a ucrchanges
@@ -154,7 +154,6 @@ UniventionConfigCommit ${ucrcommit[@]}
 
 ## cleanup
 unset \
-	server_role \
 	dcpass dcuser \
 	hostname domainname \
 	ucrchanges ucrremoves ucrcounter ucrcommit

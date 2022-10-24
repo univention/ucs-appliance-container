@@ -17,7 +17,7 @@ STDOUT ( timeing )
 ## Build minbase bootstrap container image from scratch ```( optionally with time and/or --slimify )```
 Script for docker or podman with debootstrap that imports the first container image to local registry. But, there are some dependencies for this. You can have a look into the script [bootstrap.sh](../bootstrap/bootstrap.sh) or maybe you will get some instructions to fix them. As you will see, the command option ``` --slimify ``` will disable and erase the man pages and unnecessary locales too. But remember that the ``` ${TAG} ``` will be expanded to include ``` -slim ```.
 ```bash
-VERSION="5.0-1"; \
+VERSION="5.0-2"; \
   time /bin/bash bootstrap/bootstrap.sh \
     --use-cache \
     --arch amd64 \
@@ -47,7 +47,7 @@ docker image inspect univention-corporate-server-debootstrap:latest
 ```
 ## Build a deployment container image with docker ```( optionally with time )```
 ```bash
-VERSION="5.0-1"; IMAGE="univention-corporate-server-debootstrap"; TAG="latest"; \
+VERSION="5.0-2"; IMAGE="univention-corporate-server-debootstrap"; TAG="latest"; \
   time docker build \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
     --build-arg VERSION=${VERSION} \
@@ -71,7 +71,7 @@ docker image inspect univention-corporate-server:latest
 ```
 ## Build a deployment container image with podman ```( optionally with time )```
 ```bash
-VERSION="5.0-1"; IMAGE="univention-corporate-server-debootstrap"; TAG="latest"; \
+VERSION="5.0-2"; IMAGE="univention-corporate-server-debootstrap"; TAG="latest"; \
   time podman build \
     --format docker \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \

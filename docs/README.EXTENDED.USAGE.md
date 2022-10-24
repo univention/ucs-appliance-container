@@ -4,7 +4,7 @@ This is a self deploying container for running a [Univention Corporate Server](h
 
 ## Extended usage
 
-First fo all, you have to understand the structure of all the important running parts. The container starts with the process identifier ( PID ) number one by the command/entrypoint ``` /sbin/init ``` or better ``` systemd ```. From now controlls systemd all type of service units and will start a service unit called [univention-container-mode-firstboot](../root/usr/lib/systemd/system/univention-container-mode-firstboot.service) for the first start/boot process with some depencies like the environment service unit [univention-container-mode-environment](../root/usr/lib/systemd/system/univention-container-mode-environment.service).
+First fo all, you have to understand the structure of all the important running parts. The container starts with the process identifier ( PID ) number one by the command/entrypoint ``` /bin/systemd ``` or better ``` systemd ```. From now controlls systemd all type of service units and will start a service unit called [univention-container-mode-firstboot](../root/usr/lib/systemd/system/univention-container-mode-firstboot.service) for the first start/boot process with some depencies like the environment service unit [univention-container-mode-environment](../root/usr/lib/systemd/system/univention-container-mode-environment.service).
 
 ### Basic syntax for script naming
 

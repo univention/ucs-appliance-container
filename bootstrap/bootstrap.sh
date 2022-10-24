@@ -34,6 +34,20 @@
 # - switch to GitHub API
 #  => curl --silent --header "Accept: application/vnd.github.v3+json" https://api.github.com/repos/univention/univention-corporate-server/tags | jq -r .[].name
 #  => curl --silent --header "Accept: application/vnd.github.v3+json" https://api.github.com/repos/univention/univention-corporate-server/tags | jq -r .[0].name | tr --complement --delete '[:digit:]'
+# - Fix missing usr-is-merged
+#  => I: Checking component main on https://updates.software-univention.de/...
+#  => E: Couldn't find these debs: usr-is-merged
+# patch /usr/share/debootstrap/scripts/debian-common <<EOF
+# @@ -48,7 +48,7 @@
+#  	# we can install the empty 'usr-is-merged' metapackage to indicate
+#  	# that the transition has been done.
+#  	case "\$CODENAME" in
+# -		etch*|lenny|squeeze|wheezy|jessie*|stretch|buster|bullseye)
+# +		etch*|lenny|squeeze|wheezy|jessie*|stretch|buster|bullseye|ucs*)
+#  			;;
+#  		*)
+#  			required="\$required usr-is-merged"
+# EOF
 
 ## CHECK FOR ROOT USER
 [[ ${LOGNAME} == root ]] || {
@@ -440,6 +454,8 @@ for strap in debootstrap febootstrap; do
 										find ${TARGET}/usr/share/doc -depth -type f ! -name copyright \
 											-delete
 										find ${TARGET}/usr/share/doc -depth -empty \
+											-delete
+										find ${TARGET} -regex '^.*\(__pycache__\|\.py[co]\)$' \
 											-delete
 									}
 

@@ -42,7 +42,7 @@ RUN \
 # install minimal dependencies ( systemd )
 RUN \
   ${APT} update;                                                  \
-  ${APT} install systemd systemd-sysv;                            \
+  ${APT} install systemd;                                         \
   ${APT} dist-upgrade;                                            \
   ${APT} autoremove;                                              \
   ${APT} clean
@@ -103,6 +103,8 @@ RUN \
   test -f ${SLIMIFY} &&                                           \
   find /usr/share/doc -depth -type f ! -name copyright -delete;   \
   test -f ${SLIMIFY} &&                                           \
+  find / -regex '^.*\(__pycache__\|\.py[co]\)$' -delete;          \
+  test -f ${SLIMIFY} &&                                           \
   find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*'    \
   -exec rm --force --verbose --recursive {} \;;                   \
   find /usr/share/doc -depth -empty -delete
@@ -156,14 +158,11 @@ RUN systemctl mask --                                             \
 
 # we don't need this service unit(s) in the container
 #  see root/usr/lib/systemd/system/systemd-*.service.d/*.conf
-#  see root/usr/lib/univention-container-mode/\
-#    {join,recreate}/00-aA-NAMESPACES-Aa-00 too
-#      => we need systemd-timedated for namespace detection
 RUN systemctl mask --                                             \
-  systemd-networkd-wait-online.service                            \
-  systemd-timedated.service
-# systemd-resolved ( ConditionVirtualization=!container )
-# systemd-logind   ( ConditionVirtualization=!container )
+  systemd-networkd-wait-online.service
+# systemd-timedated.service ( ConditionVirtualization=!container )
+# systemd-resolved          ( ConditionVirtualization=!container )
+# systemd-logind            ( ConditionVirtualization=!container )
 
 RUN systemctl mask --                                             \
   lvm2.service lvm2-activation.service lvm2-monitor.service       \
@@ -233,4 +232,4 @@ VOLUME /home /sys/fs/cgroup /lib/modules /run /run/lock /tmp \
   /var/univention-join \
   /var/backups
 
-CMD [ "/sbin/init" ]
+CMD [ "/bin/systemd" ]

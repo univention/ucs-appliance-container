@@ -38,7 +38,7 @@ source /usr/lib/univention-container-mode/utils.sh || exit 1
 # }
 
 ## ucr shell
-eval "$(ucr shell hostname domainname password/hashing/method machine/password/complexity machine/password/length ldap/base)"
+eval "$(ucr shell hostname domainname password/hashing/method machine/password/complexity machine/password/length)"
 
 ## declare
 declare -a ucrchanges
@@ -139,6 +139,9 @@ UniventionSystemInstallSystemRole=$(
 			echo -n ${rootpw} >${secret}
 			chmod 600 ${secret}
 		}
+		#
+		# cleanup ldap databases from installer, if we don't have any machine secret
+		[[ -f /etc/machine.secret ]] || find /var/lib/univention-ldap/ldap -type f -delete
 		#
 		# ucr default(s) for master
 		univention-config-registry set "ldap/translogfile=/var/lib/univention-ldap/listener/listener" \

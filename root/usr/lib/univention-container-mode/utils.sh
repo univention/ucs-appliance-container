@@ -197,7 +197,7 @@ function UniventionDistUpdate() { # UniventionDistUpdate: void
 		ucr get update/commands/update | egrep -- ^apt || echo -n "apt-get update"
 	)
 
-	egrep --quiet --recursive -- Traceback /etc/apt/sources.* &&
+	egrep --quiet --recursive -- "Traceback|repository.online.true" /etc/apt/sources.* &&
 		UniventionResetRepositoryOnline
 
 	UniventionInstallLock ${UniventionSystemDistUpdateCommand}
@@ -247,11 +247,13 @@ function UniventionResetRepositoryOnline() { # UniventionResetRepositoryOnline: 
 	${UniventionResetRepositoryOnlineCommand}=false
 
 	while timeout ${timeout} ${UniventionResetRepositoryOnlineCommand}=true &&
-		egrep --quiet --recursive -- Traceback /etc/apt/sources.*; do
+		egrep --quiet --recursive -- "Traceback|repository.online.true" /etc/apt/sources.*; do
 		[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionResetRepositoryOnlineCommand})" && return 1
 		counter=$((${counter} + 1))
 		sleep ${sleep} && ${UniventionResetRepositoryOnlineCommand}=false
 	done
+
+	rm --force --verbose /etc/apt/sources.*/*.old
 }
 #
 function UniventionCheckJoinStatus() { # UniventionCheckJoinStatus: void
