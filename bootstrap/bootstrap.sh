@@ -96,6 +96,11 @@ curl=$(getPath curl)
 [[ -z ${curl} ]] ||
 	curl="${curl} --fail --silent"
 
+## SET DPKG PATH
+dpkg=$(getPath dpkg)
+[[ -z ${dpkg} ]] &&
+	missing dpkg
+
 ## SET GPG PATH
 gpg=$(getPath gpg)
 [[ -z ${gpg} ]] &&
@@ -459,13 +464,19 @@ for strap in debootstrap febootstrap; do
 											-delete
 									}
 
+									i=0
+									${dpkg} --compare-versions ${MAJOR}.${MINOR}-${PATCH} ge 4.4-5 || while [ $((${MAJOR} + 1)) -gt ${i} ]; do
+										i=$((${i} + 1))
+										wget --quiet --directory-prefix=${TARGET}/etc/apt/trusted.gpg.d/ https://$(echo ${MIRROR} | awk -F/ '{print $3}')/univention-archive-key-ucs-${i}x.gpg && sleep 3 || continue
+									done
+
 									case ${SUITE} in
 									ucs5*) {
 										echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR} ${SUITE/ucs/errata} main" > \
 											${TARGET}/etc/apt/sources.list
 									} ;;
 									*) {
-										echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main" > \
+										echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR/${MAJOR}.${MINOR}-${PATCH}/component} ${MAJOR}.${MINOR}-${PATCH}-errata/all/\ndeb [arch=${ARCH}] ${MIRROR/${MAJOR}.${MINOR}-${PATCH}/component} ${MAJOR}.${MINOR}-${PATCH}-errata/${ARCH}/" > \
 											${TARGET}/etc/apt/sources.list
 									} ;;
 									esac

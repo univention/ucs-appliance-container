@@ -136,10 +136,8 @@ command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && com
 				${restore}/packages/dpkg.selection
 			# save package list from dpkg-query --list --no-pager
 			#  ( --no-pager since UCS 5.0-0 )
-			dpkg-query --list --no-pager > \
-				${restore}/packages/dpkg.list ||
-				dpkg-query --list > \
-					${restore}/packages/dpkg.list
+			(dpkg-query --list --no-pager 2>/dev/null || dpkg-query --list 2>/dev/null) > \
+				${restore}/packages/dpkg.list
 		}
 		[[ -d ${restore}/registry ]] && {
 			# save config registry
@@ -193,7 +191,7 @@ command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && com
 			# use samba-tool offline/local backup if we have a real DC
 			[[ -f /var/lib/samba/private/sam.ldb ]] && {
 				# backup and move to static file ( no timestamp ) or force remove it
-				samba-tool domain backup offline --targetdir=${restore}/samba &&
+				samba-tool domain backup offline --targetdir=${restore}/samba 2>/dev/null &&
 					mv --force --verbose \
 						${restore}/samba/samba-backup-*tar.bz2 \
 						${restore}/samba/domain-backup.tar.bz2 ||

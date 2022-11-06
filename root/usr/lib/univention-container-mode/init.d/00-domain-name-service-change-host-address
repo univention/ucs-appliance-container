@@ -1,0 +1,111 @@
+#!/bin/bash
+#
+# Univention Container Mode - domain-name-service-change-host-address
+#
+# Copyright 2020-2021 Univention GmbH
+#
+# http://www.univention.de/
+#
+# All rights reserved.
+#
+# The source code of this program is made available
+# under the terms of the GNU Affero General Public License version 3
+# (GNU AGPL V3) as published by the Free Software Foundation.
+#
+# Binary versions of this program provided by Univention to you as
+# well as other copyrighted, protected or trademarked materials like
+# Logos, graphics, fonts, specific documentations and configurations,
+# cryptographic keys etc. are subject to a license agreement between
+# you and Univention and not subject to the GNU AGPL V3.
+#
+# In the case you use this program under the terms of the GNU AGPL V3,
+# the program is provided in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public
+# License with the Debian GNU/Linux or Univention distribution in file
+# /usr/share/common-licenses/AGPL-3; if not, see
+# <http://www.gnu.org/licenses/>.
+
+## util(s)
+source /usr/lib/univention-container-mode/utils.sh || exit 1
+
+## function(s)
+# function name() { # name: (IN)[>(OUT)]
+# 	echo function
+# }
+
+## ucr shell
+eval "$(ucr shell hostname domainname server/role)"
+
+## declare
+declare -a ucrchanges
+# ucrchanges+=("key=value")
+declare -a ucrremoves
+# ucrremoves+=("key")
+
+declare -A ucrcounter
+# ucrcounter[<STRING>]=<INT>
+
+declare -A ucrcommit
+# ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
+
+declare -A network
+network[ipv4]=4
+network[ipv6]=6
+
+debug "### START SCRIPT($(pwd)/$0) ###"
+## check for old host ip address and change if needed
+#
+for version in ${network[@]}; do
+	# get default interface from ip -(4|6) route list
+	#
+	network[routelist]=$(ip -${version} route list | awk ' /^default/{ printf $0 }') # default via <address> dev <interface>
+	network[interface]=$(echo ${network[routelist]} | awk '/^default/{ for (I=1;I<=NF;I++) if ( $I=="dev" ) { print $(I+1) } }')
+	[[ -z ${network[interface]:-} ]] || {
+		network[addresses]=$(ip -${version} address show scope global dev ${network[interface]} | egrep -- "^*inet") # inet* <address>/<cidr> [brd <broadcast>] scope global <interface>
+
+		network[address]=$(echo ${network[addresses]} | awk '/inet/{ split($2,IP,"/"); printf IP[1] }') # get only first match in awk by $2
+		network[cidr]=$(echo ${network[addresses]} | awk '   /inet/{ split($2,IP,"/"); printf IP[2] }') # get only first match in awk by $2
+
+		[[ ${version} == 4 ]] && [[ "${network[address]}" != "$(ucr get interfaces/${network[interface]}/address)" ]] &&
+			umc-command --username ${hostname}\$ --password $(</etc/machine.secret) \
+				ip/change \
+				--option oldip=$(ucr get interfaces/${network[interface]}/address) \
+				--option ip=${network[address]} \
+				--option netmask=${network[cidr]} \
+				--option role=${server_role} && sleep 3 || /bin/true
+
+		[[ ${version} == 6 ]] && [[ "${network[address]}" != "$(ucr get interfaces/${network[interface]}/ipv6/default/address)" ]] &&
+			umc-command --username ${hostname}\$ --password $(</etc/machine.secret) \
+				ip/change \
+				--option oldip=$(ucr get interfaces/${network[interface]}/ipv6/default/address) \
+				--option ip=${network[address]} \
+				--option netmask=${network[cidr]} \
+				--option role=${server_role} && sleep 3 || /bin/true
+	}
+	#
+done
+#
+## check for old host ip address and change if needed
+debug "### STOPP SCRIPT($(pwd)/$0) ###"
+
+## ucr removes
+UniventionConfigRegistryUnSet ${ucrremoves[@]}
+
+## ucr changes
+UniventionConfigRegistrySet ${ucrchanges[@]}
+
+## ucr commit
+UniventionConfigCommit ${ucrcommit[@]}
+
+## cleanup
+unset \
+	network \
+	server_role \
+	hostname domainname \
+	ucrchanges ucrremoves ucrcounter ucrcommit
+
+debug "### CLEAN SCRIPT($(pwd)/$0) ###"

@@ -246,14 +246,17 @@ function UniventionResetRepositoryOnline() { # UniventionResetRepositoryOnline: 
 
 	${UniventionResetRepositoryOnlineCommand}=false
 
-	while timeout ${timeout} ${UniventionResetRepositoryOnlineCommand}=true &&
-		egrep --quiet --recursive -- "Traceback|repository.online.true" /etc/apt/sources.*; do
+	while egrep --quiet --recursive -- "Traceback|repository.online.true" /etc/apt/sources.*; do
 		[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionResetRepositoryOnlineCommand})" && return 1
 		counter=$((${counter} + 1))
+
 		sleep ${sleep} && ${UniventionResetRepositoryOnlineCommand}=false
+		timeout ${timeout} ${UniventionResetRepositoryOnlineCommand}=true
+
+		find /etc/apt/sources.list.d -type f -name *.old -delete
 	done
 
-	rm --force --verbose /etc/apt/sources.*/*.old
+	rm --force --verbose /etc/apt/sources.list.d/*_commit_*
 }
 #
 function UniventionCheckJoinStatus() { # UniventionCheckJoinStatus: void

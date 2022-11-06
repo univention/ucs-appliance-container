@@ -79,7 +79,11 @@ conf=/etc/dpkg/dpkg.cfg.d/univention-container-mode
 				${conf}
 		}
 	}
-	# reinstall all packages excluded systemd and be sure we have the new ${locale/_*/}
+}
+#
+# reinstall all packages excluded systemd and be sure we have the new ${locale/_*/} or
+#  if the system will recreate ( see recreate/00-aA-APT-SOURCES-LIST-Aa-00 )
+[[ -f ${conf} ]] || [[ -f $(find /etc/apt -maxdepth 1 -mmin -3 -type f -name sources.list | head -1) ]] && {
 	#  ( dpkg ... --no-pager and apt-get reinstall since UCS 5.0-0 )
 	(dpkg-query --list --no-pager 2>/dev/null || dpkg-query --list 2>/dev/null || /bin/true) |
 		awk '/^ii/{ gsub(/\:amd64/,"",$2); print $2 }' |

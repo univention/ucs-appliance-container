@@ -40,6 +40,10 @@ There is a systemd service unit called [univention-container-mode-backup](../roo
 ```bash
 --env BACKUPS=(1|yes|true|YES|TRUE)
 ```
+If there is a vaild backup available, you can set force an old version inside the container with the environment variable:
+```bash
+--env RESTORE=(force|FORCE)
+```
 This be expected to fix the problem of losing your manual changes with ``` docker-compose pull && docker-compose up ( --force-recreate ) ``` in future for rudimentary services like ldap, ssl, ssh ... . But remember, you can't change the ```${hostname}``` or ```${domainname}```!
 
 ```bash

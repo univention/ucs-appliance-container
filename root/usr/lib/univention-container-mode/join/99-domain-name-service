@@ -167,9 +167,9 @@ for version in ${network[@]}; do
 		dig @${NS} ${hostname}.${domainname} ${IN} 2>&1 | egrep --quiet -- "^${hostname}.${domainname}.*IN.*${IN}.*${network[address]}$" ||
 			umc-command --username ${hostname}\$ --password $(</etc/machine.secret) \
 				ip/change \
-				--option netmask=${network[cidr]} \
 				--option ip=${network[address]} \
-				--option role=${server_role} || /bin/true
+				--option netmask=${network[cidr]} \
+				--option role=${server_role} && sleep 3 || /bin/true
 
 		### Try to force fallback over univention-directory-manager with binddn and bindpwd #############################################
 		#

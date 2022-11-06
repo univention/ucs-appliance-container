@@ -73,7 +73,7 @@ UniventionDistUpdate
 UniventionDistUpgrade
 #
 # check repository online sources after dist-upgrade
-egrep --quiet --recursive -- Traceback /etc/apt/sources.* && {
+egrep --quiet --recursive -- "Traceback|repository.online.true" /etc/apt/sources.* && {
 	UniventionResetRepositoryOnline && echo > \
 		/etc/apt/sources.list
 	UniventionDistUpdate

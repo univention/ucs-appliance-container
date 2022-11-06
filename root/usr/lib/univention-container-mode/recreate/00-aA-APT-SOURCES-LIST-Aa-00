@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Univention Container Mode - apt-repository-online
+# Univention Container Mode - apt-sources-list
 #
 # Copyright 2020-2021 Univention GmbH
 #
@@ -53,12 +53,35 @@ declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
 
 debug "### START SCRIPT($(pwd)/$0) ###"
-## check repository online for container mode environment
+## restore/recreate the container mode environment
 #
-egrep --quiet --recursive -- "Traceback|repository.online.true" /etc/apt/sources.* &&
-	UniventionDistUpdate
+restore=/var/backups/univention-container-mode
 #
-## check repository online for container mode environment
+# restore force if we have a vaild backup and set a nice version compare
+#  find more in ( join/99-system-restore-initialize )
+[[ -f ${restore}/restore ]] && [[ ${RESTORE-} =~ ^force|FORCE$ ]] && {
+	ARCH="amd64"
+
+	MAJOR=$(tr --complement --delete '[:digit:]' <${restore}/restore | awk NF=NF FS= | awk '{ print $1 }')
+	MINOR=$(tr --complement --delete '[:digit:]' <${restore}/restore | awk NF=NF FS= | awk '{ print $2 }')
+	PATCH=$(tr --complement --delete '[:digit:]' <${restore}/restore | awk NF=NF FS= | awk '{ print $3 }')
+
+	SUITE="ucs${MAJOR}${MINOR}${PATCH}"
+
+	[[ -f /etc/apt/mirror.url ]] && MIRROR=$(tr --delete '\n' </etc/apt/mirror.url) || MIRROR="https://updates.software-univention.de"
+
+	[[ ${MAJOR} -ge 5 ]] || MIRROR="${MIRROR}/${MAJOR}.${MINOR}/maintained/${MAJOR}.${MINOR}-${PATCH}"
+
+	if [[ ${MAJOR} -ge 5 ]]; then
+		echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR} ${SUITE/ucs/errata} main" > \
+			/etc/apt/sources.list
+	else
+		echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR/${MAJOR}.${MINOR}-${PATCH}/component} ${MAJOR}.${MINOR}-${PATCH}-errata/all/\ndeb [arch=${ARCH}] ${MIRROR/${MAJOR}.${MINOR}-${PATCH}/component} ${MAJOR}.${MINOR}-${PATCH}-errata/${ARCH}/" > \
+			/etc/apt/sources.list
+	fi
+}
+#
+## restore/recreate the container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"
 
 ## ucr removes

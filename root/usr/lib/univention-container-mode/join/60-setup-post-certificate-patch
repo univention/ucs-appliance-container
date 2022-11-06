@@ -1,6 +1,7 @@
 #!/bin/bash
+# https://forge.univention.org/bugzilla/show_bug.cgi?id=54311
 #
-# Univention Container Mode - apt-repository-online
+# Univention Container Mode - setup-post-certificate-patch
 #
 # Copyright 2020-2021 Univention GmbH
 #
@@ -53,12 +54,18 @@ declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
 
 debug "### START SCRIPT($(pwd)/$0) ###"
-## check repository online for container mode environment
+## Certificates patche for container mode environment
 #
-egrep --quiet --recursive -- "Traceback|repository.online.true" /etc/apt/sources.* &&
-	UniventionDistUpdate
+cron=/etc/cron.d/univention-container-mode-certificate-patch
 #
-## check repository online for container mode environment
+CertificateCommand="univention-certificate"
+CertificatePackage="univention-ssl"
+#
+[[ -f $(command -v ${CertificateCommand} 2>/dev/null | head -1).orig ]] && [[ -d $(dirname ${cron}) ]] && cat <<EOF >${cron}
+30 03 * * $(date +%u -d '+3 days') root /bin/bash -c 'rm --force --verbose ${cron}; apt-mark unhold ${CertificatePackage}'
+EOF
+#
+## Certificates patche for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"
 
 ## ucr removes
