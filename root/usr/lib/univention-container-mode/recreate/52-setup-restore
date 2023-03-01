@@ -215,9 +215,16 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 		[[ -d ${restore}/samba/etc ]] &&
 			${RSYNC} ${restore}/samba/etc/samba /etc/
 
-		# restore bind9 config ( ldap machine secret as bindpw )
-		[[ -d ${restore}/bind/etc ]] &&
+		# restore bind9 config ( ldap machine secret as bindpw and be sure we have right permissions )
+		[[ -d ${restore}/bind/etc ]] && {
 			${RSYNC} ${restore}/bind/etc/bind /etc/
+			chown --verbose --recursive \
+				root /etc/bind
+			chgrp --verbose \
+				bind /etc/bind
+			chgrp --verbose --recursive \
+				bind /etc/bind/{local*,named*,rndc.key,univention*}
+		}
 
 		# restore samba ( netlogon, private, sysvol, etc ... )
 		for dir in $(find /var/lib/samba -maxdepth 1 -type d); do

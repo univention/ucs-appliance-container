@@ -33,9 +33,16 @@
 source /usr/lib/univention-container-mode/utils.sh || exit 1
 
 ## function(s)
-# function name() { # name: (IN)[>(OUT)]
-# 	echo function
-# }
+function units() { # units: (systemctl ${stat[@]})
+	local sockets=(docker)
+	local services=(containerd docker)
+
+	for stat in ${@}; do
+		for socket in ${sockets[@]}; do systemctl ${stat} -- ${socket}.socket >/dev/null 2>&1 || continue; done
+		for service in ${services[@]}; do systemctl ${stat} -- ${service}.service >/dev/null 2>&1 || continue; done
+	done
+
+}
 
 ## ucr shell
 # eval "$(ucr shell hostname domainname)"
@@ -62,14 +69,8 @@ mountpoint --quiet /var/lib/docker >/dev/null 2>&1 && { # DinD YES/NO ?
 
 	BashCompletion=/etc/bash_completion.d
 
-	services=(containerd.service docker.service)
-	sockets=(docker.socket)
-
 	# unmask/enable/start socket and service unit(s)
-	for stat in unmask enable start; do
-		for socket in ${sockets[@]}; do systemctl ${stat} -- ${socket}.socket >/dev/null 2>&1 || continue; done
-		for service in ${services[@]}; do systemctl ${stat} -- ${service}.service >/dev/null 2>&1 || continue; done
-	done
+	units unmask enable start
 
 	docker version >/dev/null 2>&1 && { # DinD YES
 		ucrchanges+=("docker/daemon/default/opts/bip=172.31.31.1/16")
@@ -93,16 +94,12 @@ mountpoint --quiet /var/lib/docker >/dev/null 2>&1 && { # DinD YES/NO ?
 						--silent --output ${BashCompletion}/docker-compose
 			}
 		}
-		systemctl restart -- ${ServiceUnitList} || /bin/true
+		units restart
 	}
 
 	docker version >/dev/null 2>&1 || { # DinD NO
 		ucrchanges+=("appcenter/docker=false")
-
-		for stat in stop disable mask; do
-			for service in ${services[@]}; do systemctl ${stat} -- ${service}.service >/dev/null 2>&1 || continue; done
-			for socket in ${sockets[@]}; do systemctl ${stat} -- ${socket}.socket >/dev/null 2>&1 || continue; done
-		done
+		units stop disable mask
 	}
 
 }

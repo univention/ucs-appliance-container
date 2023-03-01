@@ -18,7 +18,7 @@ STDOUT ( timeing )
 Script for docker or podman with debootstrap that imports the first container image directly from testing repository ( [updates-test.software-univention.de](https://updates-test.software-univention.de/) ) to your local container registry. As you will see, the command option ``` --slimify ``` will disable and erase the man pages and unnecessary locales too. But remember that the ``` ${TAG} ``` will be expanded to include ``` -slim ```. All dpkg -- Debian package manager config files are located under [dpkg.cfg.d](../root/etc/dpkg/dpkg.cfg.d)
 .
 ```bash
-VERSION="5.0-2"; \
+VERSION="5.0-3"; \
   time /bin/bash bootstrap/bootstrap.sh \
     --use-cache \
     --arch amd64 \
@@ -43,7 +43,7 @@ docker image inspect univention-corporate-server-debootstrap:test
 ```
 ## Build a deployment container image with different repository server using docker build ```( optionally with time )```
 ```bash
-VERSION="5.0-2"; IMAGE="univention-corporate-server-debootstrap"; TAG="test"; MIRROR="https://updates-test.software-univention.de/"; \
+VERSION="5.0-3"; IMAGE="univention-corporate-server-debootstrap"; TAG="test"; MIRROR="https://updates-test.software-univention.de/"; \
   time docker build \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
     --build-arg MIRROR=${MIRROR} \
@@ -68,7 +68,7 @@ docker image inspect univention-corporate-server:test
 ```
 ## Build a deployment container image with different repository server using podman build ```( optionally with time )```
 ```bash
-VERSION="5.0-2"; IMAGE="univention-corporate-server-debootstrap"; TAG="test"; MIRROR="https://updates-test.software-univention.de/"; \
+VERSION="5.0-3"; IMAGE="univention-corporate-server-debootstrap"; TAG="test"; MIRROR="https://updates-test.software-univention.de/"; \
   time podman build \
     --format docker \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \

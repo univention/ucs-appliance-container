@@ -105,11 +105,17 @@ NETWORK=ucs; FQDN=dc.${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=
     ${PASS}
 
 NETWORK=ucs; FQDN=dc.${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=rootCA.pass; \
+  openssl genrsa -traditional \
+    -${ssl_ca_cipher:-aes256} \
+    -passout pass:"$(<${PASS})" \
+    -out ${SIGN} \
+      ${ssl_default_bits:-4096} ||
   openssl genrsa \
     -${ssl_ca_cipher:-aes256} \
     -passout pass:"$(<${PASS})" \
     -out ${SIGN} \
       ${ssl_default_bits:-4096}
+
 
 NETWORK=ucs; FQDN=dc.${NETWORK}.example; DN=${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=rootCA.pass; \
   openssl req -x509 -new \

@@ -34,6 +34,16 @@ This will also set some ```BASH``` options
   set -o pipefail
 ```
 
+#### set the latest version by [GitHub default branch](https://github.com/univention/univention-corporate-server/branches) DEFAULT(TRUE)
+```bash
+--env LATEST=(1|yes|true|YES|TRUE)
+```
+
+#### set a specific version and overwrite the default lastest version DEFAULT(UNUSED)
+```bash
+--env VERSION=${MAJOR}.${MINOR}-${PATCH} or VERSION=${MAJOR}${MINOR}${PATCH}
+```
+
 #### restarts the container after first start/boot succeeded DEFAULT(FALSE)
 ```bash
 --env RESTART=(1|yes|true|YES|TRUE)
@@ -251,10 +261,15 @@ This option will only work for the system role [primary](https://docs.software-u
 If you would like to test with a self signed root certificate, you can use the following commands to generate them.
 
 ###### first: generate passphrase
-``` echo $(pwgen -1 -${machine_password_complexity:-scn} ${machine_password_length:-64} | tr --delete '\n') > rootCA.pass ```
+```bash
+echo $(pwgen -1 -${machine_password_complexity:-scn} ${machine_password_length:-64} | tr --delete '\n') > rootCA.pass
+```
 
-###### second: generate rsa private key with passphrase as signkey
-``` openssl genrsa -${ssl_ca_cipher:-aes256} -passout pass:"$(<rootCA.pass)" -out rootCA.key ${ssl_default_bits:-4096} ```
+###### second: generate rsa private key with passphrase as signkey ( since OpenSSL 3.0.0 you need the -traditional fallback option )
+```bash
+openssl genrsa -traditional -${ssl_ca_cipher:-aes256} -passout pass:"$(<rootCA.pass)" -out rootCA.key ${ssl_default_bits:-4096} \
+  || openssl genrsa -${ssl_ca_cipher:-aes256} -passout pass:"$(<rootCA.pass)" -out rootCA.key ${ssl_default_bits:-4096}
+```
 
 ###### third: generate the root certificate from rsa private sign key with the passphrase ( optionally noninteractiv with additional informations )
 ```bash

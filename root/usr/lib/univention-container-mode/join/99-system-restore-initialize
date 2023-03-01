@@ -131,8 +131,13 @@ command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && com
 			${RSYNC} /var/lib/univention-ldap/local-schema ${restore}/ldap/schema
 		}
 		[[ -d ${restore}/packages ]] && {
+			# set filter for package selection by systemd virt detection
+			#  ( to convert from real or virt machine, erase anything )
+			systemd-detect-virt --container >/dev/null 2>&1 &&
+				PackageSelectionExcludeKeyFilter='^(.*deinstall$)' ||
+				PackageSelectionExcludeKeyFilter='^(.*)'
 			# save package selection from dpkg --get-selections
-			dpkg --get-selections > \
+			dpkg --get-selections | awk '!/'${PackageSelectionExcludeKeyFilter}'/{ print $0 }' > \
 				${restore}/packages/dpkg.selection
 			# save package list from dpkg-query --list --no-pager
 			#  ( --no-pager since UCS 5.0-0 )

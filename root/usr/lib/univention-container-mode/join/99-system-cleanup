@@ -99,7 +99,7 @@ find /usr/share/{man,doc,locale} \
 systemctl daemon-reload
 #
 # enable and start default service unit(s)
-for service in atd bind9 cron nscd postfix rsync rsyslog slapd ssh stunnel4; do
+for service in atd bind9 cron nscd ntp postfix rsync rsyslog slapd ssh stunnel4; do
 	systemctl enable -- ${service}.service || /bin/true
 	systemctl start -- ${service}.service || /bin/true
 done

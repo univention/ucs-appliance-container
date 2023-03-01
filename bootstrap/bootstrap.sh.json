@@ -21,6 +21,37 @@
 					},
 					"mirror": "https://updates-test.software-univention.de",
 					"codenames": {
+						"ucs503": {
+							"name": "ucs503",
+							"arch": [
+								"amd64"
+							],
+							"tag": "test",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 5.x <container@univention.de>",
+									"hash": "8321745BB32A82C75BBD4BC2D293E501A055F562",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates-test.software-univention.de/univention-archive-key-ucs-5x.gpg",
+									"date": {
+										"created": "2020-05-08",
+										"expire": "2027-05-07"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"python3-cffi-backend"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils",
+									"apt-transport-https"
+								]
+							}
+						},
 						"ucs502": {
 							"name": "ucs502",
 							"arch": [
@@ -133,12 +164,43 @@
 					},
 					"mirror": "https://updates.software-univention.de",
 					"codenames": {
+						"ucs503": {
+							"name": "ucs503",
+							"arch": [
+								"amd64"
+							],
+							"tag": "latest",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 5.x <container@univention.de>",
+									"hash": "8321745BB32A82C75BBD4BC2D293E501A055F562",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-5x.gpg",
+									"date": {
+										"created": "2020-05-08",
+										"expire": "2027-05-07"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"python3-cffi-backend"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils",
+									"apt-transport-https"
+								]
+							}
+						},
 						"ucs502": {
 							"name": "ucs502",
 							"arch": [
 								"amd64"
 							],
-							"tag": "latest",
+							"tag": "ucs502",
 							"gpg": {
 								"key": {
 									"name": "Univention Corporate Server 5.x <container@univention.de>",

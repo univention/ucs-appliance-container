@@ -109,6 +109,9 @@ if [[ -e /var/univention-join/joined ]]; then
 		#
 		# reload systemd daemon
 		systemctl daemon-reload
+		#
+		# reset failed unit(s)
+		systemctl reset-failed
 	fi
 fi
 #
