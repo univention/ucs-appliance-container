@@ -65,12 +65,12 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 #
 [[ -z ${role:-} ]] && role=master
 
-echo -n ${role} | awk '\
+printf "%s" ${role} | awk '\
 	 /[a-zA-Z]/{ print "SERVER ROLE("tolower($1)")" } \
 	!/[a-zA-Z]/{ print "SERVER ROLE MISSSPELLED: SET ROLE TO DEFAULT(master). USE ENVIRONMENT( role=<master|slave|backup|member> )" }'
 
 role=$(
-	echo -n ${role} | awk '\
+	printf "%s" ${role} | awk '\
 	 /[a-zA-Z]/{ printf tolower($1) } \
 	!/[a-zA-Z]/{ printf "master" }'
 )
@@ -89,7 +89,7 @@ role=$(
 [[ -z ${rootpw:-} ]] && passwd=$(
 	pwgen -1 -${machine_password_complexity:-scn} ${machine_password_length:-64} | tr --delete '\n'
 )
-[[ -z ${passwd:-} ]] || echo -n ${passwd} >/dev/shm/univention-container-mode.secrets
+[[ -z ${passwd:-} ]] || printf "%s" ${passwd} >/dev/shm/univention-container-mode.secrets
 [[ -z ${rootpw:-} ]] && rootpw=${passwd}
 #
 # set root password
@@ -136,7 +136,7 @@ UniventionSystemInstallSystemRole=$(
 		secret=/var/lib/univention-ldap/root.secret
 		#
 		mkdir --parents $(dirname ${secret}) && {
-			echo -n ${rootpw} >${secret}
+			printf "%s" ${rootpw} >${secret}
 			chmod 600 ${secret}
 		}
 		#

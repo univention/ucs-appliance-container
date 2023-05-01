@@ -53,47 +53,75 @@ declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
 
 debug "### START SCRIPT($(pwd)/$0) ###"
-## create the latest container mode environment based on github repository default tag or form specific version
+## create the latest container mode environment based on ucs-releases.json, fallback to github repository default tag or form specific version
 #
-[[ ${LATEST:-TRUE} =~ ^1|yes|true|YES|TRUE$ ]] && command -v python3 >/dev/null 2>&1 && python3 -c 'import json; import urllib.request;' && {
-	GITHUB="https://api.github.com/repos/univention/univention-corporate-server/tags"
-
-	LATEST=$(
-		python3 -c "import json; import urllib.request; g = urllib.request.urlopen('${GITHUB}'); e = g.info().get_content_charset('utf-8'); print(json.loads(g.read().decode(e))[0]['name'])" 2>/dev/null
+[[ ${LATEST:-TRUE} =~ ^1|yes|true|YES|TRUE$ ]] && {
+	version=$(
+		awk '\
+			/ucs/{ \
+				for(i=0;i<=NF;i++){ \
+					if ( $i ~ /^ucs/) { gsub(/^ucs/,"",$i); printf $i } \
+				} \
+			}' $(find /etc/apt/sources.list /etc/apt/sources.list.d -type f -name *.list)
 	)
 
-	ARCH="amd64"
+	VERSION=${VERSION:-$(
+		[[ ${version} -ge 500 ]] && UniventionLatestReleaseMirror ||
+			UniventionDefaultBranchGitHub
+	)}
 
-	MAJOR=$(echo ${VERSION:-${LATEST/release-/}} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $1 }')
-	MINOR=$(echo ${VERSION:-${LATEST/release-/}} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $2 }')
-	PATCH=$(echo ${VERSION:-${LATEST/release-/}} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $3 }')
+	echo ${VERSION} | egrep --quiet -- "[[:digit:]]" || VERSION=$(
+		UniventionDefaultBranchGitHub
+	)
 
-	SUITE="ucs${MAJOR}${MINOR}${PATCH}"
+	major=$(echo ${version} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $1 }')
+	MAJOR=$(echo ${VERSION} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $1 }')
 
-	echo ${VERSION-} | tr --complement --delete '[:digit:]' | egrep --quiet -- "^[[:digit:]][[:digit:]][[:digit:]]$" && {
-		echo "TRY FORCE VERSION UCS(${MAJOR}.${MINOR}-${PATCH}) ..."
-	} || {
-		echo "TRY LATEST VERSION FROM GITHUB(${GITHUB}) UCS(${MAJOR}.${MINOR}-${PATCH}) ..."
-	}
+	minor=$(echo ${version} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $2 }')
+	MINOR=$(echo ${VERSION} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $2 }')
 
-	echo ${MAJOR}.${MINOR}-${PATCH} | egrep --quiet -- "^[[:digit:]]\.[[:digit:]]\-[[:digit:]]$" && {
-		[[ -f /etc/apt/mirror.url ]] && MIRROR=$(tr --delete '\n' </etc/apt/mirror.url) || MIRROR="https://updates.software-univention.de"
+	patch=$(echo ${version} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $3 }')
+	PATCH=$(echo ${VERSION} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $3 }')
 
-		[[ ${MAJOR} -ge 5 ]] || MIRROR="${MIRROR}/${MAJOR}.${MINOR}/maintained/${MAJOR}.${MINOR}-${PATCH}"
+	echo "${major}.${minor}-${patch} ${MAJOR}.${MINOR}-${PATCH}" | egrep --quiet -- "^[[:digit:]]\.[[:digit:]]\-[[:digit:]]\s[[:digit:]]\.[[:digit:]]\-[[:digit:]]$" && {
+		until dpkg --compare-versions ${major}${minor}${patch} ge ${MAJOR}${MINOR}${PATCH}; do
+			apt-get -qq update 2>/dev/null && apt-get -qqy dist-upgrade && apt-get -qqy autoremove || /bin/true
 
-		if [[ ${MAJOR} -ge 5 ]]; then
-			echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR} ${SUITE/ucs/errata} main" > \
-				/etc/apt/sources.list
-		else
-			echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR/${MAJOR}.${MINOR}-${PATCH}/component} ${MAJOR}.${MINOR}-${PATCH}-errata/all/\ndeb [arch=${ARCH}] ${MIRROR/${MAJOR}.${MINOR}-${PATCH}/component} ${MAJOR}.${MINOR}-${PATCH}-errata/${ARCH}/" > \
-				/etc/apt/sources.list
-		fi
+			[[ ${major} -ge ${MAJOR} ]] && [[ ${minor} -ge ${MINOR} ]] &&
+				patch=${PATCH} || patch=0
 
-		cat /etc/apt/sources.list
+			[[ ${major} -ge ${MAJOR} ]] ||
+				minor=$((${minor} + 1))
+
+			[[ ${minor} -ge ${MINOR} ]] ||
+				minor=$((${minor} + 1))
+
+			[[ ${minor} -ge 10 ]] &&
+				major=$((${major} + 1)) &&
+				minor=0
+
+			UniventionAptSourcesList ${major} ${minor} ${patch}
+		done
+		#
+		# finale apt sources list
+		UniventionAptSourcesList ${MAJOR} ${MINOR} ${PATCH}
+		#
+		# finale update and dist upgrade
+		apt-get -qq update 2>/dev/null && apt-get -qqy dist-upgrade && apt-get -qqy autoremove || /bin/true
+		#
+		# container mode init ( same as Docker file )
+		UniventionContainerModeDockerfileInit
+		#
+		# container mode slim ( same as Docker file )
+		UniventionContainerModeSlimify
+		#
+		# checking if the container needs to restart
+		UniventionContainerModeRestartCheck
+		#
 	}
 }
 #
-## create the latest container mode environment based on github repository default tag or form specific version
+## create the latest container mode environment based on ucs-releases.json, fallback to github repository default tag or form specific version
 debug "### STOPP SCRIPT($(pwd)/$0) ###"
 
 ## ucr removes

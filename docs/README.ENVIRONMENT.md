@@ -34,7 +34,7 @@ This will also set some ```BASH``` options
   set -o pipefail
 ```
 
-#### set the latest version by [GitHub default branch](https://github.com/univention/univention-corporate-server/branches) DEFAULT(TRUE)
+#### set the latest version by Univention default repository mirror [releases](https://updates.software-univention.de/ucs-releases.json), [testing](https://updates-test.software-univention.de/ucs-releases.json) or as fallback from [GitHub default branch](https://github.com/univention/univention-corporate-server/branches) DEFAULT(TRUE)
 ```bash
 --env LATEST=(1|yes|true|YES|TRUE)
 ```

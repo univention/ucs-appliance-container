@@ -67,6 +67,12 @@ done
 # update package cache from /etc/apt/sources.list
 UniventionDistUpdate
 #
+# update packages
+UniventionDistUpgrade
+#
+# commit nameserver changes
+UniventionConfigRegistrySet ${ucrchanges[@]} || /bin/true
+#
 # slimify from debootstrap ( no man pages, no locales, no ... )
 conf=/etc/dpkg/dpkg.cfg.d/univention-container-mode
 [[ -f ${conf} ]] && {
@@ -122,51 +128,31 @@ UniventionConfigRegistrySet ${ucrchanges[@]}
 	univention-config-registry set repository/online/server=$(tr --delete '\n' </etc/apt/mirror.url)
 rm -f /etc/apt/mirror.url
 #
+# set repository online mirror url for appcenter
+#  default(appcenter.software-univention.de)
+# [[ $(ucr get repository/online/server) =~ updates-test.software-univention.de ]] &&
+# 	univention-config-registry set repository/app_center/server=appcenter-test.software-univention.de
+#
 # install univention-updater ( errata level )
 UniventionInstall \
 	univention-updater
 #
-# force disabling chfn and mandb ( Dockerfile )
-#  Creating new user ... PAM: System error
-ln --symbolic --force /bin/true /bin/chfn
-ln --symbolic --force /bin/true /usr/bin/chfn
-ln --symbolic --force /bin/true /usr/local/bin/chfn
-#  Processing triggers for man-db ...
-ln --symbolic --force /bin/true /bin/mandb
-ln --symbolic --force /bin/true /usr/bin/mandb
-ln --symbolic --force /bin/true /usr/local/bin/mandb
+# container mode init ( same as Dockerfile )
+UniventionContainerModeDockerfileInit
 #
-# force cleanup target wants ( same as Dockerfile )
-rm --force --verbose \
-	/etc/rc*.d/* \
-	/etc/systemd/system/*.wants/* \
-	/lib/systemd/system/multi-user.target.wants/* \
-	/lib/systemd/system/systemd-update-utmp* \
-	/lib/systemd/system/local-fs.target.wants/* \
-	/lib/systemd/system/sockets.target.wants/*udev* \
-	/lib/systemd/system/sockets.target.wants/*initctl* \
-	/lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup*
-#
-systemctl daemon-reload
-#
-# fix missing multi-user target wants ( Dockerfile )
-systemctl enable -- \
-	univention-container-mode-environment.service \
-	univention-container-mode-firstboot.service \
-	univention-container-mode-recreate.service \
-	univention-container-mode-storage.service \
-	univention-container-mode-backup.service \
-	univention-container-mode-joined.service \
-	univention-container-mode-fixes.service \
-	univention-container-mode-init.service
+# checking if the container needs to restart
+UniventionContainerModeRestartCheck
 #
 systemctl enable -- \
 	univention-directory-listener.service || /bin/true
 #
-# don't mask tmp.mount for UCS >= 5.0-0
-dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) ge 5.0.0 &&
+# don't mask tmp.mount and systemd-logind.service for UCS >= 5.0-0
+dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) ge 5.0.0 && {
 	systemctl unmask -- \
 		tmp.mount
+	rm --force --verbose \
+		/usr/lib/systemd/system/systemd-logind.service.d/condition-virtualization-container.conf
+}
 #
 ## check dependencies for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"
