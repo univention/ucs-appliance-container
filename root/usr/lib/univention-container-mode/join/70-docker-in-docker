@@ -99,7 +99,7 @@ mountpoint --quiet /var/lib/docker >/dev/null 2>&1 && { # DinD YES/NO ?
 
 	docker version >/dev/null 2>&1 || { # DinD NO
 		ucrchanges+=("appcenter/docker=false")
-		units stop disable mask
+		units stop disable mask reset-failed
 	}
 
 }

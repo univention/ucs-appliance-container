@@ -126,10 +126,11 @@ univention-check-join-status 2>&1 | egrep --quiet -- "^Joined successfully" && {
 			--recursive \
 			--verbose \
 			/etc/univention/ssl
-		chown ${hostname}\$:DC\ Backup\ Hosts \
+		id ${hostname}\$ && chown ${hostname}\$:DC\ Backup\ Hosts \
 			--recursive \
 			--verbose \
-			/etc/univention/ssl/${hostname} /etc/univention/ssl/${hostname}.${domainname}
+			/etc/univention/ssl/${hostname} /etc/univention/ssl/${hostname}.${domainname} ||
+			/bin/true
 	}
 	#
 	# set certificate(s) permission for slave hosts

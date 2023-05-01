@@ -74,6 +74,149 @@ function EGrepLdapAddExcludeAttributeFilter() { # EGrepLdapAddExcludeAttributeFi
 			--invert-match -- ${filter}
 }
 #
+function UniventionDefaultBranchGitHub() { # UniventionDefaultBranchGitHub: void
+	local url="https://api.github.com/repos/univention/univention-corporate-server/tags"
+
+	command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; import json; import urllib.request; sys.exit(0)' ||
+		return ${?}
+
+	python3 <<EOF 2>/dev/null
+import sys
+import json
+import urllib.request
+
+try:
+  request = urllib.request.urlopen('${url}')
+  content = request.info().get_content_charset('utf-8')
+  release = json.loads(request.read().decode(content))[0]['name']
+except:
+  sys.exit(1)
+
+print(release)
+EOF
+}
+#
+function UniventionLatestReleaseMirror() { # UniventionLatestReleaseMirror: void
+	local url=$(
+		ucr get repository/online/server 2>/dev/null | egrep -- ^http ||
+			printf "%s" "https://updates.software-univention.de/"
+	)
+
+	command -v python3 >/dev/null 2>&1 && python3 -c 'import os; import sys; import json; import urllib.request; sys.exit(0)' ||
+		return ${?}
+
+	python3 <<EOF 2>/dev/null
+import os
+import sys
+import json
+import urllib.request
+
+### default univention repository mirrors
+#
+#  production: https://updates.software-univention.de/
+# development: https://updates-test.software-univention.de/
+#
+file='/etc/apt/mirror.url'
+if os.path.isfile(file):
+  mirror = open(file, 'r')
+  url = mirror.read().replace('\n', '')
+  mirror.close()
+else:
+  url = '${url}'
+#
+status = 'maintained' if not 'test' in url else 'development'
+#
+### default univention ucs-releases.json from repository mirror
+#
+#{
+#    "releases": [
+#        {
+#            "major": Number,
+#            "minors": [
+#                {
+#                    "minor": Number,
+#                    "patchlevels": [
+#                        {
+#                            "patchlevel": Number,
+#                            "status": String("development", "maintained", "end-of-life")
+#                        }
+#                    ]
+#                }
+#            ]
+#        }
+#    ]
+#}
+#
+try:
+  request = urllib.request.urlopen(f'{url}/ucs-releases.json')
+  content = request.info().get_content_charset('utf-8')
+  response = json.loads(request.read().decode(content))
+except:
+  sys.exit(1)
+#
+### release=(MAJOR, MINOR, PATCH)
+#
+release=(0,0,0)
+#
+### get latest release filterd by status('maintained' or 'development')
+#
+for keys in response.keys():
+  if keys == 'releases':
+    for releases in response[keys]:
+      for majors in releases.keys():
+        if majors == 'major':
+          MAJOR=releases[majors]
+
+        if majors == 'minors':
+          for minors in releases[majors]:
+            for minor in minors.keys():
+              if minor == 'minor':
+                MINOR=minors[minor]
+
+              if minor == 'patchlevels':
+                for patches in minors[minor]:
+                  if patches['status'] == status:
+                    PATCH=patches['patchlevel']
+                    release=(MAJOR, MINOR, PATCH)
+#
+if not 'release-0.0-0' in (f"release-{release[0]}.{release[1]}-{release[2]}"):
+  print(f"release-{release[0]}.{release[1]}-{release[2]}")
+else:
+  sys.exit(1)
+#
+EOF
+}
+#
+function UniventionAptSourcesList() { # UniventionAptSourcesList: IN(major,minor,patch)
+	local major=${1-}
+	local minor=${2-}
+	local patch=${3-}
+
+	echo "${major}.${minor}-${patch}" | egrep --quiet -- "^[[:digit:]]\.[[:digit:]]\-[[:digit:]]$" || return ${?}
+
+	local arch="amd64" suite="ucs${major}${minor}${patch}"
+
+	[[ -f /etc/apt/mirror.url ]] && mirror=$(tr --delete '\n' </etc/apt/mirror.url) || mirror="https://updates.software-univention.de"
+
+	for i in {0..1}; do # check and/or download new gpg keys ( don't forget the next major )
+		keyring="univention-archive-key-ucs-$((${major} + ${i}))x.gpg"
+		[[ $(find /{etc/apt/trusted.gpg.d,usr/share/keyrings} -type f -name ${keyring} | wc -l) -gt 0 ]] ||
+			python3 -c "import urllib.request; urllib.request.urlretrieve('${mirror}/${keyring}', '/etc/apt/trusted.gpg.d/${keyring}')" >/dev/null 2>&1 || /bin/true
+	done
+
+	[[ ${major} -ge 5 ]] || mirror="${mirror}/${major}.${minor}/maintained/${major}.${minor}-${patch}"
+
+	if [[ ${major} -ge 5 ]]; then
+		echo -e "deb [arch=${arch}] ${mirror} ${suite} main\ndeb [arch=${arch}] ${mirror} ${suite/ucs/errata} main" > \
+			/etc/apt/sources.list
+	else
+		echo -e "deb [arch=${arch}] ${mirror} ${suite} main\ndeb [arch=${arch}] ${mirror/${major}.${minor}-${patch}/component} ${major}.${minor}-${patch}-errata/all/\ndeb [arch=${arch}] ${mirror/${major}.${minor}-${patch}/component} ${major}.${minor}-${patch}-errata/${arch}/" > \
+			/etc/apt/sources.list
+	fi
+
+	find /etc/apt/sources.list.d -type f -delete
+}
+#
 function UniventionInstallCleanUp() { # UniventionInstallCleanUp: void
 	for name in "dpkg-dist" "debian"; do
 		find /etc \
@@ -142,7 +285,7 @@ function UniventionInstall() { # UniventionInstall: IN(${@})
 		local sleep=120
 
 		local UniventionSystemInstallCommand="$(
-			ucr get update/commands/install | egrep -- ^apt || echo -n "apt-get -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1 install"
+			ucr get update/commands/install | egrep -- ^apt || printf "%s" "apt-get -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1 install"
 		) --autoremove --verbose-versions"
 
 		UniventionInstallLock ${UniventionSystemInstallCommand} ${@}
@@ -168,7 +311,7 @@ function UniventionInstallNoRecommends() { # UniventionInstallNoRecommends: IN($
 		local sleep=120
 
 		local UniventionSystemInstallCommand="$(
-			ucr get update/commands/install | egrep -- ^apt || echo -n "apt-get -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1 install"
+			ucr get update/commands/install | egrep -- ^apt || printf "%s" "apt-get -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1 install"
 		) --no-install-recommends --verbose-versions"
 
 		UniventionDistUpdate >/dev/null 2>&1
@@ -194,7 +337,7 @@ function UniventionDistUpdate() { # UniventionDistUpdate: void
 	local sleep=30
 
 	local UniventionSystemDistUpdateCommand=$(
-		ucr get update/commands/update | egrep -- ^apt || echo -n "apt-get update"
+		ucr get update/commands/update | egrep -- ^apt || printf "%s" "apt-get update"
 	)
 
 	egrep --quiet --recursive -- "Traceback|repository.online.true" /etc/apt/sources.* &&
@@ -222,7 +365,7 @@ function UniventionDistUpgrade() { # UniventionDistUpgrade: void
 	local sleep=120
 
 	local UniventionSystemDistUpgradeCommand=$(
-		ucr get update/commands/distupgrade | egrep -- ^apt || echo -n "apt-get -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1 dist-upgrade"
+		ucr get update/commands/distupgrade | egrep -- ^apt || printf "%s" "apt-get -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1 dist-upgrade"
 	)
 
 	UniventionInstallLock ${UniventionSystemDistUpgradeCommand}
@@ -285,6 +428,89 @@ function UniventionCheckJoinStatus() { # UniventionCheckJoinStatus: void
 
 	# cleanup
 	rm --force ${dcpwd}
+}
+#
+function UniventionContainerModeDockerfileInit() { # UniventionContainerModeDockerfileInit: void
+	#
+	# force disabling chfn and mandb
+	#  Creating new user ... PAM: System error
+	ln --symbolic --force /bin/true /bin/chfn
+	ln --symbolic --force /bin/true /usr/bin/chfn
+	ln --symbolic --force /bin/true /usr/local/bin/chfn
+	#  Processing triggers for man-db ...
+	ln --symbolic --force /bin/true /bin/mandb
+	ln --symbolic --force /bin/true /usr/bin/mandb
+	ln --symbolic --force /bin/true /usr/local/bin/mandb
+	#
+	# force cleanup target wants
+	rm --force --verbose \
+		/etc/rc*.d/* \
+		/etc/systemd/system/*.wants/* \
+		/lib/systemd/system/multi-user.target.wants/* \
+		/lib/systemd/system/systemd-update-utmp* \
+		/lib/systemd/system/local-fs.target.wants/* \
+		/lib/systemd/system/sockets.target.wants/*udev* \
+		/lib/systemd/system/sockets.target.wants/*initctl* \
+		/lib/systemd/system/sysinit.target.wants/systemd-tmpfiles-setup*
+	#
+	# fix missing multi-user target wants
+	systemctl enable -- \
+		univention-container-mode-environment.service \
+		univention-container-mode-firstboot.service \
+		univention-container-mode-recreate.service \
+		univention-container-mode-storage.service \
+		univention-container-mode-backup.service \
+		univention-container-mode-joined.service \
+		univention-container-mode-fixes.service \
+		univention-container-mode-init.service
+}
+#
+function UniventionContainerModeRestartCheck() { # UniventionContainerModeRestartCheck: void
+	#
+	# checking if the container needs to restart and prevent boot looping by cleanup the logfile(s)
+	#  this is only happen if the system has to upgrade from an old container image
+	#  be sure that univention-container-mode-recreate.service will start probely
+	#
+	egrep --quiet -- 'systemd' /proc/1/cmdline && {
+		egrep --quiet --recursive -- '^Install.*systemd' /var/log/apt && {
+			[[ -f /var/backups/univention-container-mode/restore ]] &&
+				touch /var/univention-join/{joined,status}
+			find /var/log/apt -type f -delete && UniventionContainerModeRestart
+		}
+		#
+		systemctl daemon-reload && systemctl reset-failed || /bin/true
+	}
+}
+#
+function UniventionContainerModeRestart() { # UniventionContainerModeRestart: IN(wait [seconds])
+	local wait=${1:-1}
+	# restart by kill SIGRTMIN+3(37) PID(1)
+	/bin/bash -c "sleep ${wait} && kill -s 37 1" &
+}
+#
+function UniventionContainerModeSlimifyCheck() { # UniventionContainerModeSlimifyCheck: void
+	test -f /etc/dpkg/dpkg.cfg.d/univention-container-mode
+	return ${?}
+}
+#
+function UniventionContainerModeSlimify() { # UniventionContainerModeSlimify: void
+	UniventionContainerModeSlimifyCheck || return 0 && {
+		find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' \
+			-exec rm --recursive --force {} \;
+		rm --recursive --force \
+			/usr/share/groff \
+			/usr/share/info \
+			/usr/share/linda \
+			/usr/share/lintian \
+			/usr/share/man \
+			/var/cache/man || /bin/true
+		find /usr/share/doc -depth -type f ! -name copyright \
+			-delete
+		find /usr/share/doc -depth -empty \
+			-delete
+		find / -regex '^.*\(__pycache__\|\.py[co]\)$' \
+			-delete
+	}
 }
 #
 function UniventionConfigRegistryUnSet() { # UniventionConfigRegistryUnSet: IN(${ucrremoves[@]})

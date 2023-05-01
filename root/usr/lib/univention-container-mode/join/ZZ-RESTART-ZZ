@@ -57,9 +57,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 #
 if [[ -e /var/univention-join/joined ]]; then
 	if [[ ${RESTART-} =~ ^1|yes|true|YES|TRUE$ ]]; then
-		#
-		# restart the whole container by init 0 or shutdown now and without wall messages
-		bash -c 'sleep 5 && init 0 || shutdown --no-wall --poweroff now' &
+		UniventionContainerModeRestart 5
 	else
 		#
 		# stop all univention service unit(s)
@@ -78,7 +76,8 @@ if [[ -e /var/univention-join/joined ]]; then
 			-exec {} stop \; >/dev/null 2>&1 || /bin/true
 		#
 		# restart service unit(s)
-		for service in docker; do
+		for service in docker nscd nslcd postfix rsyslog ssh; do
+			systemctl cat -- ${service}.service >/dev/null 2>&1 || continue
 			systemctl restart -- ${service}.service >/dev/null 2>&1 || /bin/true
 		done
 		#

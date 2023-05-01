@@ -8,10 +8,14 @@ This is the container environment with additional amount settings and some recom
 ### first and second start/boot ```( systemctl status univention-container-mode-firstboot.service univention-container-mode-recreate.service )```
 The systemd service units [univention-container-mode-firstboot](../root/usr/lib/systemd/system/univention-container-mode-firstboot.service) and [univention-container-mode-recreate](../root/usr/lib/systemd/system/univention-container-mode-recreate.service) has some start conditions to detect an old container environment.
 
+If something goes wrong, have a look at the ``` OnFailure ``` option and you will see that systemd will try a second start/boot. This is happend if you deploy from an old container image and the first ``` apt-get dist-upgrade ``` goes wrong. Also good to know; If systemd has to upgrade, the container will starts over once or twice.
+
 ```bash
 systemctl cat univention-container-mode-firstboot.service
 ...
 [Unit]
+...
+OnFailure=univention-container-mode-firstboot-on-failure.service
 ...
 ConditionPathExists=!/var/univention-join/joined
 ConditionPathExists=!/var/univention-join/status
@@ -23,6 +27,8 @@ ConditionPathExists=!/etc/univention/base.conf
 systemctl cat univention-container-mode-recreate.service
 ...
 [Unit]
+...
+OnFailure=univention-container-mode-recreate-on-failure.service
 ...
 ConditionPathExists=/var/univention-join/joined
 ConditionPathExists=/var/univention-join/status

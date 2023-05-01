@@ -59,7 +59,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 # ToDo:
 #  - find a smarter way to fix this ...
 #
-units=(logrotate memcached phpsessionclean)
+units=(logrotate memcached man-db phpsessionclean)
 namespace=/dev/shm/univention-container-mode.namespace.detected
 #
 # unmask/enable/start/restart service unit(s)
@@ -85,6 +85,25 @@ ExecStart=/usr/sbin/logrotate /etc/logrotate.conf
 # performance options
 Nice=19
 IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+EOF
+	[[ -f /lib/systemd/system/man-db.service ]] && cat <<EOF >/etc/systemd/system/man-db.service
+[Unit]
+Description=Daily man-db regeneration
+Documentation=man:mandb(8)
+ConditionACPower=true
+
+[Service]
+Type=oneshot
+# Recover from deletion, per FHS.
+ExecStart=+/usr/bin/install -d -o man -g man -m 0755 /var/cache/man
+# Expunge old catman pages which have not been read in a week.
+ExecStart=/usr/bin/find /var/cache/man -type f -name *.gz -atime +6 -delete
+# Regenerate man database.
+ExecStart=/usr/bin/mandb --quiet
+User=man
+Nice=19
+IOSchedulingClass=idle
 IOSchedulingPriority=7
 EOF
 	[[ -f /lib/systemd/system/memcached.service ]] && cat <<EOF >/etc/systemd/system/memcached.service
@@ -123,7 +142,8 @@ done
 # start/restart failed unit(s)
 for unit in service; do
 	for stat in start restart; do
-		systemctl list-units --no-pager --no-legend --state failed --type ${unit} | awk '/[a-z].*failed/{ print $1 }' | xargs --no-run-if-empty systemctl ${stat} -- 2>&1 || /bin/true
+		systemctl list-units --no-pager --no-legend --state failed --type ${unit} | awk '/[[:alnum:]].*failed/{ if( $1 ~ /^[[:alnum:]]/ ) { print $1 } else { print $2 } }' |
+			xargs --no-run-if-empty systemctl ${stat} -- 2>&1 || /bin/true
 	done
 done
 #
