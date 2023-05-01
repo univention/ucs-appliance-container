@@ -180,12 +180,21 @@ UniventionSystemInstallSystemRole=$(
 			printf "\n"
 		}
 
-		[[ ${ERROR} =~ ^FALSE$ ]] &&
+		[[ ${ERROR} =~ ^FALSE$ ]] && {
+			#
+			# try to get a certificate before joining to the primary directory node
+			univention-ssh <(printf "%s" "${dcpass}") ${dcname} /bin/true 2>/dev/null &&
+				timeout 90 univention-ssh <(printf "%s" "${dcpass}") ${dcname} \
+					"until test -f /etc/univention/ssl/${hostname}.${domainname}/cert.pem; do \
+						univention-certificate new -name ${hostname}.${domainname} || sleep 15; \
+					done" || /bin/true
+			#
+			# run univention join process
 			/usr/share/univention-join/univention-join \
 				-dcname ${dcname} \
 				-dcaccount ${dcuser:-Administrator} \
 				-dcpwd <(printf "%s" "${dcpass}")
-
+		}
 	fi
 #
 ## Setup join from container mode environment
