@@ -1,4 +1,5 @@
 #!/bin/bash
+exit 0
 # https://forge.univention.org/bugzilla/show_bug.cgi?id=54311
 #
 # Univention Container Mode - setup-pre-certificate-patch
