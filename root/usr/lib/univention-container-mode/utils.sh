@@ -74,6 +74,88 @@ function EGrepLdapAddExcludeAttributeFilter() { # EGrepLdapAddExcludeAttributeFi
 			--invert-match -- ${filter}
 }
 #
+function ifSystemd() { # ifSystemd: void
+	egrep --quiet -- 'systemd' /proc/1/cmdline
+}
+#
+function UniventionServiceUnits() { # UniventionServiceUnits: void
+	systemctl list-units --no-pager --no-legend --type service --state loaded --all | awk '/univention/{ print $1 }' |
+		egrep --invert-match -- "^(univention-container-mode|univention-welcome-screen|.*@.service$)"
+}
+#
+function UniventionDefaultServices() { # UniventionDefaultServices: void
+	printf "atd bind9 cron heimdal-kdc memcached nagios-nrpe-server named nscd nslcd ntp ntpsec postfix rsync rsyslog slapd ssh stunnel4"
+}
+#
+function UniventionDefaultTimers() { # UniventionDefaultTimers: void
+	printf "apt-daily apt-daily-upgrade logrotate phpsessionclean"
+}
+#
+function UniventionPreInstalledRoleCheck() { # UniventionPreInstalledRoleCheck: void
+	systemctl list-units --state start --type service --no-pager --no-legend |
+		egrep --quiet -- univention-container-mode-pre-installed-role.*service
+}
+#
+function UniventionLdapSystemInitCheck() { # UniventionLdapSystemInitCheck: void
+	local secrets=(
+		/etc/ldap-backup.secret
+		/etc/ldap.secret
+	)
+	#
+	UniventionPreInstalledRoleCheck || {
+		ls -1 ${secrets[@]} 2>/dev/null && return 0
+	}
+	#
+	local base=$(ucr get ldap/base)
+	#
+	slapcat -a cn=admin 2>/dev/null | head -1 | awk '/^dn:/{ printf $2 }' |
+		egrep --quiet -- "cn=admin,${base}" && return 0
+	#
+	local hash=$(ucr get password/hashing/method)
+	local MaPC=$(ucr get machine/password/complexity)
+	local MaPL=$(ucr get machine/password/length)
+	local hostname=$(ucr get hostname)
+	local domainname=$(ucr get domainname)
+	#
+	# set defaults for univention-container-mode-pre-installed-role.service
+	univention-config-registry set --force \
+		"ldap/hostdn=cn=${hostname},cn=dc,cn=computers,${base}" \
+		"ldap/server/name=${dcname:-${hostname}.${domainname}}"
+	#
+	# be sure we don't have a machine secret
+	rm --force --verbose /etc/machine.secret
+	#
+	# unset important registry keys
+	univention-config-registry unset \
+		kerberos/realm
+	#
+	# replace all important secret(s)
+	for secret in ${secrets[@]}; do
+		pwgen -1 -${MaPC:-scn} ${MaPL:-20} |
+			tr --delete '\n' >${secret} && chmod -v 0640 ${secret} || continue
+	done
+	#
+	# force a minimal ldap init
+	for inst in $(find /usr/lib/univention-install -type f -executable -name '0*ldap*init*inst' | sort); do
+		${inst} --force || continue
+	done
+	#
+	systemctl restart slapd.service && systemctl status --no-pager slapd.service
+	#
+	# test basic ldap functions (admin,backup)+(ldap,ldaps,ldapi)
+	declare -A ldap[ldap]='389' ldap[ldaps]='636' ldap[ldapi]=''
+	for protocol in ${!ldap[*]}; do
+		for user in admin backup; do
+			uri=$([[ ${protocol} =~ ^ldapi$ ]] && printf "${protocol}:///" || printf "${protocol}://${hostname}.${domainname}:${ldap[${protocol}]}/")
+			secret=$([[ ${user} =~ ^admin$ ]] && printf "/etc/ldap.secret" || printf "/etc/ldap-backup.secret")
+			ldapsearch -H "${uri}" -D "cn=${user},${base}" -y ${secret} -s base 2>/dev/null || continue
+		done
+	done
+	#
+	# cleanup
+	unset secret inst ldap
+}
+#
 function UniventionDefaultBranchGitHub() { # UniventionDefaultBranchGitHub: void
 	local url="https://api.github.com/repos/univention/univention-corporate-server/tags"
 
@@ -241,7 +323,7 @@ function UniventionInstallLock() { # UniventionInstallLock: IN(${@})
 
 	printf "%s" "${TIMEOUT} .."
 	while fuser --silent /var/lib/dpkg/lock /var/cache/apt/archives/lock >/dev/null 2>&1; do
-		[[ ${counter} > ${repeat} ]] && printf "%s" "\nTIMEOUT(${TIMEOUT})" && return 1
+		[[ ${counter} -ge ${repeat} ]] && printf "%s" "\nTIMEOUT(${TIMEOUT})" && return 1
 		counter=$((${counter} + 1))
 		sleep ${sleep} && printf "%c" "."
 	done
@@ -251,24 +333,96 @@ function UniventionInstallLock() { # UniventionInstallLock: IN(${@})
 function UniventionAddApp() { # UniventionAddApp: IN(${@})
 	[[ "${#@}" -eq 0 || -z "${@}" ]] && return 1
 	[[ "${#@}" -eq 0 || -z "${@}" ]] || {
-		local timeout=1200
+		local timeout=1200 appAdd= appIni= appPkg= appVer= appCenter=/var/cache/univention-appcenter
+		local appUCS=$(ucr get version/version 2>/dev/null) appURL=$(
+			ucr get repository/app_center/server 2>/dev/null | egrep --invert-match -- '^$' ||
+				printf "%s" "appcenter.software-univention.de"
+		)
 
-		UniventionDistUpdate >/dev/null 2>&1
+		timeout 120 UniventionDistUpdate >/dev/null 2>&1
+		timeout 120 univention-app update 2>/dev/null || {
+			[[ ${?} -eq 124 ]] && univention-app update
+		}
 
-		if command -v univention-app; then
-			univention-app update
-			if [[ "$(ucr get server/role)" == "domaincontroller_master" ]]; then
-				timeout ${timeout} univention-app install --noninteractive \
-					${@}
+		if ifSystemd; then
+			# install app inside default systemd environment
+			if command -v univention-app 2>/dev/null; then
+				if [[ "$(ucr get server/role)" == "domaincontroller_master" ]]; then
+					timeout ${timeout} univention-app install --noninteractive \
+						${@}
+				else
+					timeout ${timeout} univention-app install --noninteractive \
+						--username ${dcuser:-Administrator} \
+						--pwdfile <(printf "%s" "${dcpass}") \
+						${@}
+				fi
 			else
-				timeout ${timeout} univention-app install --noninteractive \
-					--username ${dcuser:-Administrator} \
-					--pwdfile <(printf "%s" "${dcpass}") \
-					${@}
+				command -v univention-add-app || return 1
+				timeout ${timeout} univention-add-app --all ${@}
 			fi
 		else
-			command -v univention-add-app || return 1
-			timeout ${timeout} univention-add-app --all ${@}
+			# install app form docker or podman build ( validated by app type and server role )
+			[[ -d ${appCenter} ]] && for appAdd in ${@}; do
+				#
+				# find app ini file
+				appIni=$(
+					find ${appCenter} -maxdepth 3 -mindepth 3 -type f \
+						-name "${appAdd}.ini" -or -name "${appAdd}_*.ini" | sort | tail -1
+				)
+				#
+				# validate app ini file by version path or try the online catalog app ini file
+				[[ "$(basename $(dirname ${appIni}))" = "${appUCS}" ]] && [[ ${#appIni} -ne 0 ]] || {
+					curl --location "https://${appURL}/meta-inf/${appUCS}/${appAdd}/${appAdd}.ini" \
+						--silent --fail --output ${appCenter}/${appAdd}.ini &&
+						appIni=${appCenter}/${appAdd}.ini ||
+						appIni=
+				}
+				#
+				# validate app ini file or exit ( allow to continue for testing repository mirrors )
+				[[ ${#appIni} -eq 0 ]] && echo "ERROR: NO INI FILE FOUND FOR APP(${appAdd}) ..." && {
+					[[ ${appURL} =~ test ]] && continue || return 1
+				}
+				#
+				# validate for non-container app or exit
+				if egrep -- "^Docker" ${appIni}; then
+					echo "ERROR: CAN NOT ADD APP(${appAdd}), WRONG APP TYPE ... $(egrep -- "^DockerImage" ${appIni})"
+					return 1
+				fi
+				#
+				# validate server role or exit if not allowed
+				if egrep -- "^ServerRole" ${appIni}; then
+					egrep --quiet -- "^ServerRole.*$(ucr get server/role)" ${appIni} || {
+						echo "ERROR: CAN NOT ADD APP(${appAdd}), WRONG SERVER ROLE ... $(egrep -- "^ServerRole" ${appIni})"
+						return 1
+					}
+				fi
+				#
+				# find app packages and versions
+				appPkg=$(
+					awk '/^DefaultPackages.=/{ gsub(/^DefaultPackages.*=/,"",$0); gsub(/,/," ",$0); printf $0 " " }' ${appIni}
+				)
+				#
+				[[ ${#appPkg} -ne 0 ]] && for Pkg in DefaultPackages AdditionalPackages; do
+					egrep --quiet -- "^${Pkg}${role^}" ${appIni} &&
+						appPkg="${appPkg}$(
+							awk '/^'${Pkg}${role^}'.=/{ gsub(/^'${Pkg}${role^}'.*=/,"",$0); gsub(/,/," ",$0); printf $0 " " }' ${appIni}
+						)"
+				done
+				#
+				appVer=$(
+					awk '/^Version/{ gsub(/^Version.*=/,"",$0); gsub(/ /,"",$0); print $0 }' ${appIni}
+				)
+				#
+				# install app packages or continue if no packages found
+				[[ ${#appPkg} -eq 0 ]] && echo "WARN: NO PACKAGES FOUND FOR APP(${appAdd}) ..." && continue ||
+					UniventionInstall ${appPkg}
+				#
+				# finaly add app status to univention config registry
+				[[ ${?} -eq 0 ]] && univention-config-registry set \
+					"appcenter/apps/${appAdd}/status=installed" \
+					"appcenter/apps/${appAdd}/ucs=$(basename $(dirname ${appIni}) | egrep -- "^[[:digit:]]\.[[:digit:]]$" || echo ${appUCS})" \
+					"appcenter/apps/${appAdd}/version=${appVer}"
+			done
 		fi
 
 		UniventionInstallCleanUp
@@ -292,7 +446,7 @@ function UniventionInstall() { # UniventionInstall: IN(${@})
 
 		debug "${UniventionSystemInstallCommand} ${@}"
 		while ! timeout ${timeout} ${UniventionSystemInstallCommand} ${@} | egrep --invert-match -- "^[WE]:"; do
-			[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionSystemInstallCommand} ${@})" && return 1
+			[[ ${counter} -ge ${repeat} ]] && echo "TIMEOUT(${UniventionSystemInstallCommand} ${@})" && return 1
 			counter=$((${counter} + 1))
 			sleep ${sleep}
 		done
@@ -319,7 +473,7 @@ function UniventionInstallNoRecommends() { # UniventionInstallNoRecommends: IN($
 
 		debug "${UniventionSystemInstallCommand} ${@}"
 		while ! timeout ${timeout} ${UniventionSystemInstallCommand} ${@} | egrep --invert-match -- "^[WE]:"; do
-			[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionSystemInstallCommand} ${@})" && return 1
+			[[ ${counter} -ge ${repeat} ]] && echo "TIMEOUT(${UniventionSystemInstallCommand} ${@})" && return 1
 			counter=$((${counter} + 1))
 			sleep ${sleep}
 		done
@@ -347,7 +501,7 @@ function UniventionDistUpdate() { # UniventionDistUpdate: void
 
 	debug "${UniventionSystemDistUpdateCommand}"
 	while ! timeout ${timeout} ${UniventionSystemDistUpdateCommand} | egrep --invert-match -- "^[WE]:"; do
-		[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionSystemDistUpdateCommand})" && return 1
+		[[ ${counter} -ge ${repeat} ]] && echo "TIMEOUT(${UniventionSystemDistUpdateCommand})" && return 1
 		counter=$((${counter} + 1))
 		sleep ${sleep}
 	done
@@ -372,7 +526,7 @@ function UniventionDistUpgrade() { # UniventionDistUpgrade: void
 
 	debug "${UniventionSystemDistUpgradeCommand}"
 	while ! timeout ${timeout} ${UniventionSystemDistUpgradeCommand} 2>&1; do
-		[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionSystemDistUpgradeCommand})" && return 1
+		[[ ${counter} -ge ${repeat} ]] && echo "TIMEOUT(${UniventionSystemDistUpgradeCommand})" && return 1
 		counter=$((${counter} + 1))
 		sleep ${sleep}
 	done
@@ -390,7 +544,7 @@ function UniventionResetRepositoryOnline() { # UniventionResetRepositoryOnline: 
 	${UniventionResetRepositoryOnlineCommand}=false
 
 	while egrep --quiet --recursive -- "Traceback|repository.online.true" /etc/apt/sources.*; do
-		[[ ${counter} > ${repeat} ]] && echo "TIMEOUT(${UniventionResetRepositoryOnlineCommand})" && return 1
+		[[ ${counter} -ge ${repeat} ]] && echo "TIMEOUT(${UniventionResetRepositoryOnlineCommand})" && return 1
 		counter=$((${counter} + 1))
 
 		sleep ${sleep} && ${UniventionResetRepositoryOnlineCommand}=false
@@ -460,9 +614,11 @@ function UniventionContainerModeDockerfileInit() { # UniventionContainerModeDock
 		univention-container-mode-recreate.service \
 		univention-container-mode-storage.service \
 		univention-container-mode-backup.service \
-		univention-container-mode-joined.service \
-		univention-container-mode-fixes.service \
-		univention-container-mode-init.service
+		univention-container-mode-joined.service
+	#
+	# fix missing multi-user target wants for pre installed role
+	systemctl enable -- \
+		univention-container-mode-pre-installed-role.service 2>/dev/null || /bin/true
 }
 #
 function UniventionContainerModeRestartCheck() { # UniventionContainerModeRestartCheck: void
@@ -471,7 +627,7 @@ function UniventionContainerModeRestartCheck() { # UniventionContainerModeRestar
 	#  this is only happen if the system has to upgrade from an old container image
 	#  be sure that univention-container-mode-recreate.service will start probely
 	#
-	egrep --quiet -- 'systemd' /proc/1/cmdline && {
+	ifSystemd && {
 		egrep --quiet --recursive -- '^Install.*systemd' /var/log/apt && {
 			[[ -f /var/backups/univention-container-mode/restore ]] &&
 				touch /var/univention-join/{joined,status}

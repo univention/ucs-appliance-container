@@ -101,14 +101,14 @@ usermod --password $(mkpasswd -H ${password_hashing_method:-SHA-512} "${rootpw}"
 #
 [[ ${dcwait-} =~ ^1|yes|true|YES|TRUE$ ]] && {
 	#
-	for ns in ${nameserver[@]:-}; do
-		[[ ${ucrcounter[nameserver]} > 3 ]] && break
+	for ns in ${nameserver[@]:-} ${nameserver[@]:-} ${nameserver[@]:-}; do
+		[[ ${ucrcounter[nameserver]} -gt 3 ]] && break
 		ucrchanges+=("nameserver${ucrcounter[nameserver]}=${ns}")
 		ucrcounter[nameserver]=$((${ucrcounter[nameserver]} + 1))
 	done
 	#
-	for ns in ${forwarder[@]:-}; do
-		[[ ${ucrcounter[forwarder]} > 3 ]] && break
+	for ns in ${forwarder[@]:-} ${forwarder[@]:-} ${forwarder[@]:-}; do
+		[[ ${ucrcounter[forwarder]} -gt 3 ]] && break
 		ucrchanges+=("dns/forwarder${ucrcounter[forwarder]}=${ns}")
 		ucrcounter[forwarder]=$((${ucrcounter[forwarder]} + 1))
 	done
@@ -157,14 +157,17 @@ UniventionSystemInstallSystemRole=$(
 			touch /var/univention-join/joined && ln --symbolic --force /var/univention-join/joined /usr/share/univention-join/.joined
 			touch /var/univention-join/status && ln --symbolic --force /var/univention-join/status /usr/lib/univention-install/.index.txt
 
+			UniventionLdapSystemInitCheck
+
 			for inst in $(find /usr/lib/univention-install -name *.inst -executable -type f | sort); do
-				${inst} 2>&1 || /bin/true
+				${inst} 2>&1 || continue
 			done
 
+			UniventionCheckJoinStatus || /bin/true
 		}
 		#
 		# cleanup
-		rm --force ${secret}
+		rm --force --verbose /var/lib/univention-ldap/root.secret
 	else
 		[[ -z ${dcname:-} ]] && ERROR=TRUE || ERROR=FALSE
 		[[ -z ${dcpass:-} ]] && ERROR=TRUE
@@ -189,11 +192,13 @@ UniventionSystemInstallSystemRole=$(
 						univention-certificate new -name ${hostname}.${domainname} || sleep 15; \
 					done" || /bin/true
 			#
-			# run univention join process
-			/usr/share/univention-join/univention-join \
-				-dcname ${dcname} \
-				-dcaccount ${dcuser:-Administrator} \
-				-dcpwd <(printf "%s" "${dcpass}")
+			# run univention join process ( allow to fail once max twice )
+			for i in {1..3}; do
+				echo "TRY ${i} OF 3 WITH SERVER ROLE(role=${role}) JOINING TO DOMAIN-CONTROLLER(dcname=${dcname}), USER-ACCOUNT(dcuser=\${dcuser:-Administrator}) AND PASSWORD(dcpass=\${dcpass})"
+				/usr/share/univention-join/univention-join \
+					-dcname ${dcname} -dcaccount ${dcuser:-Administrator} \
+					-dcpwd <(printf "%s" "${dcpass}") && break || sleep 30
+			done
 		}
 	fi
 #

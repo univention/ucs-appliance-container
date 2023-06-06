@@ -42,6 +42,9 @@ ConditionPathExists=!/var/univention-join/joined
 ConditionPathExists=!/var/univention-join/status
 ConditionPathExists=!/etc/univention/base.conf
 
+# don't check the join status again if RESTART option are requested
+# ( univention-check-join-status: Error: ldapsearch -x failed )
+
 [Service]
 Type=oneshot
 TimeoutSec=0
@@ -49,9 +52,10 @@ RemainAfterExit=yes
 EnvironmentFile=/dev/shm/univention-container-mode.env
 WorkingDirectory=/usr/lib/univention-container-mode
 ExecStart=-/usr/bin/run-parts --verbose -- join
-ExecStartPost=/usr/sbin/univention-check-join-status
-ExecStartPost=-/usr/bin/systemctl \
-  stop -- univention-container-mode-environment.service
+ExecStartPost=/bin/bash -c '\
+  egrep \
+    --quiet -- RESTART /dev/shm/univention-container-mode.env || \
+      univention-check-join-status'
 
 [Install]
 WantedBy=multi-user.target

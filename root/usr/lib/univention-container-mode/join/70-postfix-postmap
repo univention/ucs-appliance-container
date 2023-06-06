@@ -55,8 +55,16 @@ declare -A ucrcommit
 debug "### START SCRIPT($(pwd)/$0) ###"
 ## Regenarate postfix lookup table(s) for container mode environment
 #
-[[ -d /etc/postfix ]] && find /etc/postfix -type f -name '*.db' -exec \
-	/bin/bash -c 'db={}; postmap $(dirname ${db})/$(basename ${db} .db)' \;
+[[ -d /etc/postfix ]] && {
+	# find missing databases by postconf hash key
+	postconf 2>/dev/null |
+		awk '/hash:\/etc\/postfix/{ \
+			gsub(/^.*hash\:/,"",$0); print $0 \
+		}' | xargs --no-run-if-empty postmap --
+	# force regenarate all postmap databases
+	find /etc/postfix -type f -name '*.db' -exec \
+		/bin/bash -c 'db={}; postmap $(dirname ${db})/$(basename ${db} .db)' \;
+}
 #
 ## Regenarate postfix lookup table(s) for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"

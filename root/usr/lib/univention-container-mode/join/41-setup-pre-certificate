@@ -555,9 +555,10 @@ command -v ${CertificateCommand} >/dev/null 2>&1 || UniventionInstallNoRecommend
 	}
 }
 #
-# generate host certificate if needed
+# generate host certificate if needed and only for a vaild or empty role
+#  ( pre installed role containers already have a defined server role )
 #
-command -v ${CertificateCommand} && {
+command -v ${CertificateCommand} && [[ $(ucr get server/role 2>/dev/null) =~ ^$|master ]] && {
 	${CertificateCommand} check -name ${hostname}.${domainname} ||
 		${CertificateCommand} new -name ${hostname}.${domainname}
 

@@ -60,11 +60,11 @@ if [[ -e /var/univention-join/joined ]]; then
 		UniventionContainerModeRestart 5
 	else
 		#
+		services=$(UniventionServiceUnits)
+		#
 		# stop all univention service unit(s)
-		for service in $(find /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system -type l -name univention* -exec basename {} \;); do
-			echo ${service} | egrep --quiet --invert-match -- "^univention-container-mode" && {
-				systemctl stop --force -- ${service} || /bin/true
-			}
+		for service in ${services}; do
+			systemctl stop --force -- ${service} || /bin/true
 		done
 		#
 		# stop all univention init.d service unit(s)
@@ -90,10 +90,8 @@ if [[ -e /var/univention-join/joined ]]; then
 			-exec {} start \; >/dev/null 2>&1 || /bin/true
 		#
 		# start all univention service unit(s)
-		for service in $(find /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system -type l -name univention* -exec basename {} \;); do
-			echo ${service} | egrep --quiet --invert-match -- "^univention-container-mode" && {
-				systemctl start -- ${service} || /bin/true
-			}
+		for service in ${services}; do
+			systemctl start -- ${service} || /bin/true
 		done
 		#
 		# restart univention-container-mode-fixes service unit
@@ -106,12 +104,21 @@ if [[ -e /var/univention-join/joined ]]; then
 				univention-container-mode-joined.service &
 		}
 		#
+		# stop univention-container-mode-environment service unit in background
+		sleep 5 && systemctl \
+			stop -- univention-container-mode-environment.service &
+		#
 		# reload systemd daemon
 		systemctl daemon-reload
 		#
 		# reset failed unit(s)
 		systemctl reset-failed
 	fi
+	#
+	# fix missing multi-user target wants for univention container mode
+	systemctl enable -- \
+		univention-container-mode-fixes.service \
+		univention-container-mode-init.service
 fi
 #
 ## restart the container mode environment
