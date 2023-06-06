@@ -84,40 +84,42 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 	PATCH=$(echo ${VERSION} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $3 }')
 
 	echo "${major}.${minor}-${patch} ${MAJOR}.${MINOR}-${PATCH}" | egrep --quiet -- "^[[:digit:]]\.[[:digit:]]\-[[:digit:]]\s[[:digit:]]\.[[:digit:]]\-[[:digit:]]$" && {
-		until dpkg --compare-versions ${major}${minor}${patch} ge ${MAJOR}${MINOR}${PATCH}; do
+		if [[ "${major}.${minor}-${patch}" != "${MAJOR}.${MINOR}-${PATCH}" ]]; then
+			until dpkg --compare-versions ${major}${minor}${patch} ge ${MAJOR}${MINOR}${PATCH}; do
+				apt-get -qq update 2>/dev/null && apt-get -qqy dist-upgrade && apt-get -qqy autoremove || /bin/true
+
+				[[ ${major} -ge ${MAJOR} ]] && [[ ${minor} -ge ${MINOR} ]] &&
+					patch=${PATCH} || patch=0
+
+				[[ ${major} -ge ${MAJOR} ]] ||
+					minor=$((${minor} + 1))
+
+				[[ ${minor} -ge ${MINOR} ]] ||
+					minor=$((${minor} + 1))
+
+				[[ ${minor} -ge 10 ]] &&
+					major=$((${major} + 1)) &&
+					minor=0
+
+				UniventionAptSourcesList ${major} ${minor} ${patch}
+			done
+			#
+			# finale apt sources list
+			UniventionAptSourcesList ${MAJOR} ${MINOR} ${PATCH}
+			#
+			# finale update and dist upgrade
 			apt-get -qq update 2>/dev/null && apt-get -qqy dist-upgrade && apt-get -qqy autoremove || /bin/true
-
-			[[ ${major} -ge ${MAJOR} ]] && [[ ${minor} -ge ${MINOR} ]] &&
-				patch=${PATCH} || patch=0
-
-			[[ ${major} -ge ${MAJOR} ]] ||
-				minor=$((${minor} + 1))
-
-			[[ ${minor} -ge ${MINOR} ]] ||
-				minor=$((${minor} + 1))
-
-			[[ ${minor} -ge 10 ]] &&
-				major=$((${major} + 1)) &&
-				minor=0
-
-			UniventionAptSourcesList ${major} ${minor} ${patch}
-		done
-		#
-		# finale apt sources list
-		UniventionAptSourcesList ${MAJOR} ${MINOR} ${PATCH}
-		#
-		# finale update and dist upgrade
-		apt-get -qq update 2>/dev/null && apt-get -qqy dist-upgrade && apt-get -qqy autoremove || /bin/true
-		#
-		# container mode init ( same as Docker file )
-		UniventionContainerModeDockerfileInit
-		#
-		# container mode slim ( same as Docker file )
-		UniventionContainerModeSlimify
-		#
-		# checking if the container needs to restart
-		UniventionContainerModeRestartCheck
-		#
+			#
+			# container mode slim ( same as Docker file )
+			UniventionContainerModeSlimify
+			#
+			# container mode init ( same as Docker file )
+			UniventionContainerModeDockerfileInit
+			#
+			# checking if the container needs to restart
+			UniventionContainerModeRestartCheck
+			#
+		fi
 	}
 }
 #

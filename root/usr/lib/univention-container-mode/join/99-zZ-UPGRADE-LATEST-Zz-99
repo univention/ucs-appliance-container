@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Univention Container Mode - namespace
+# Univention Container Mode - upgrade-latest
 #
 # Copyright 2020-2021 Univention GmbH
 #
@@ -53,65 +53,16 @@ declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
 
 debug "### START SCRIPT($(pwd)/$0) ###"
-## Test and disable private tmp namespaces for container mode environment
+## upgrade to the latest univention maintained release for container mode environment
+#   ( skipp any testing mirrors, like https://updates-test.software-univention.de/ )
 #
-detected=/dev/shm/univention-container-mode.namespace.detected
-units=(univention-container-mode-private-temp)
-services=(apache2 ntp nagios-nrpe-server)
-#
-# unmask/start service unit(s)
-for unit in ${units[@]}; do
-	for stat in unmask start; do
-		systemctl ${stat} -- ${unit}.service >/dev/null 2>&1 || /bin/true
+[[ ${LATEST:-TRUE} =~ ^SKIPP|1|yes|true|YES|TRUE$ ]] && dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) gt 5.0.0 && {
+	[[ $(ucr get repository/online/server) =~ test ]] || until univention-upgrade --ignoressh --ignoreterm --noninteractive; do
+		[[ ${?} == 5 ]] && sleep 3 || break
 	done
-done
+}
 #
-for unit in ${units[@]}; do
-	journalctl --output cat --no-hostname --unit ${unit}.service | egrep --quiet -- NAMESPACE || continue && {
-		# disable private tmp from known service(s) by override config file
-		for service in ${services[@]}; do
-			conf=/usr/lib/systemd/system/${service}.service.d/disable-private-tmp.conf
-			[[ -d $(dirname ${conf}) ]] || mkdir $(dirname ${conf}) || continue && {
-				echo -e "[Service]\nPrivateTmp=false" > \
-					${conf}
-			}
-		done
-		touch ${detected}
-	}
-done
-#
-# stop/mask service unit(s)
-for unit in ${units[@]}; do
-	for stat in stop mask; do
-		systemctl ${stat} -- ${unit}.service >/dev/null 2>&1 || /bin/true
-	done
-done
-#
-# get a minimal working systemd-logind service unit without hardning or private tmp
-[[ -f ${detected} ]] && cat <<EOF >/etc/systemd/system/systemd-logind.service
-[Unit]
-Description=User Login Management
-
-Wants=user.slice
-After=nss-user-lookup.target user.slice
-
-ConditionPathExists=|/lib/systemd/system/dbus.service
-ConditionPathExists=|/lib/systemd/system/dbus-broker.service
-
-Wants=dbus.socket
-After=dbus.socket
-
-[Service]
-BusName=org.freedesktop.login1
-ExecStart=/lib/systemd/systemd-logind
-Restart=always
-RestartSec=0
-WatchdogSec=3min
-EOF
-#
-systemctl daemon-reload
-#
-## Test and disable private tmp namespaces for container mode environment
+## upgrade to the latest univention maintained release for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"
 
 ## ucr removes

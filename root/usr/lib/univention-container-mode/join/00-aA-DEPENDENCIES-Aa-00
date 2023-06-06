@@ -59,7 +59,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 #
 # get minimal nameserver config from resolv.conf
 for ns in $(sed -rn 's/^nameserver[\t ]+([^\t ]+)/\1/p' ${ucrcommit[resolv.conf]}); do
-	[[ ${ucrcounter[nameserver]} > 3 ]] && break
+	[[ ${ucrcounter[nameserver]} -gt 3 ]] && break
 	ucrchanges+=("nameserver${ucrcounter[nameserver]}=${ns}")
 	ucrcounter[nameserver]=$((${ucrcounter[nameserver]} + 1))
 done
@@ -89,7 +89,8 @@ conf=/etc/dpkg/dpkg.cfg.d/univention-container-mode
 #
 # reinstall all packages excluded systemd and be sure we have the new ${locale/_*/} or
 #  if the system will recreate ( see recreate/00-aA-APT-SOURCES-LIST-Aa-00 )
-[[ -f ${conf} ]] || [[ -f $(find /etc/apt -maxdepth 1 -mmin -3 -type f -name sources.list | head -1) ]] && {
+[[ -f $(find $(dirname ${conf}) -maxdepth 1 -mmin -3 -type f -name $(basename ${conf}) | head -1) ]] ||
+	[[ -f $(find /etc/apt -maxdepth 1 -mmin -3 -type f -name sources.list | head -1) ]] && {
 	#  ( dpkg ... --no-pager and apt-get reinstall since UCS 5.0-0 )
 	(dpkg-query --list --no-pager 2>/dev/null || dpkg-query --list 2>/dev/null || /bin/true) |
 		awk '/^ii/{ gsub(/\:amd64/,"",$2); print $2 }' |
@@ -128,10 +129,10 @@ UniventionConfigRegistrySet ${ucrchanges[@]}
 	univention-config-registry set repository/online/server=$(tr --delete '\n' </etc/apt/mirror.url)
 rm -f /etc/apt/mirror.url
 #
-# set repository online mirror url for appcenter
+# set repository online mirror url for appcenter ( ignore missing gpg for all.tar )
 #  default(appcenter.software-univention.de)
-# [[ $(ucr get repository/online/server) =~ updates-test.software-univention.de ]] &&
-# 	univention-config-registry set repository/app_center/server=appcenter-test.software-univention.de
+[[ $(ucr get repository/online/server) =~ updates-test.software-univention.de ]] &&
+	univention-config-registry set repository/app_center/server=appcenter-test.software-univention.de appcenter/index/verify=false
 #
 # install univention-updater ( errata level )
 UniventionInstall \

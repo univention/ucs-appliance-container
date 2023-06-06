@@ -57,10 +57,30 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 #
 restore=/var/backups/univention-container-mode
 #
-# restore force if we have a vaild backup and set a nice version compare
+# restore force if we have a vaild backup
 #  find more in ( join/99-system-restore-initialize )
-[[ -f ${restore}/restore ]] && [[ ${RESTORE-} =~ ^force|FORCE$ ]] && {
-	VERSION=$(<${restore}/restore) LATEST=TRUE /bin/bash ${0/recreate/join}
+[[ -f ${restore}/restore ]] && {
+	#
+	VERSION=$(tr --complement --delete '[:digit:]' <${restore}/restore)
+	#
+	version=$(
+		awk '\
+			/ucs/{ \
+				for(i=0;i<=NF;i++){ \
+					if ( $i ~ /^ucs/) { gsub(/^ucs/,"",$i); printf $i } \
+				} \
+			}' $(find /etc/apt/sources.list /etc/apt/sources.list.d -type f -name *.list)
+	)
+	#
+	# restore when the server role is not set and a nice version was found compared to the backup
+	#  ( never try to automatically downgrade the system, but respect the requested value )
+	[[ $(ucr get server/role 2>/dev/null) =~ ^$ ]] &&
+		test ${version} -lt ${VERSION} && RESTORE=${RESTORE:-FORCE}
+	#
+	# set a nice version compare if requested or detected
+	#  ( upgrade the system )
+	[[ ${RESTORE-} =~ ^force|FORCE$ ]] &&
+		VERSION=${VERSION} LATEST=TRUE /bin/bash ${0/recreate/join}
 }
 #
 ## restore/recreate the container mode environment

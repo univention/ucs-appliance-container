@@ -60,25 +60,27 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 ## Nameserverconfig for ucr commit ${ucrcommit[resolv.conf]}
 #
 for ns in $(sed -rn 's/^nameserver[\t ]+([^\t ]+)/\1/p' ${ucrcommit[resolv.conf]}); do
-	[[ ${ucrcounter[resolv.conf]} > 3 ]] && break
+	[[ ${ucrcounter[resolv.conf]} -gt 3 ]] && break
 	ucrchanges+=("nameserver${ucrcounter[resolv.conf]}=${ns}")
 	ucrcounter[resolv.conf]=$((${ucrcounter[resolv.conf]} + 1))
 	debug $(host ${ns})
 done
 #
 # overwrite(s) from container mode environment if dcwait inactive
-#  INFO: look 52-setup-join, maybe we have to wait for a master
+#  INFO: see ( 52-setup-join ) maybe we have to wait for a master
+#   FIX: be sure to overwrite any old nameserver and/or forwarder
+#    OK: why not configure the same server three times ...
 #
 [[ ${dcwait-} =~ ^1|yes|true|YES|TRUE$ ]] || {
-	for ns in ${nameserver[@]:-}; do
-		[[ ${ucrcounter[nameserver]} > 3 ]] && break
+	for ns in ${nameserver[@]:-} ${nameserver[@]:-} ${nameserver[@]:-}; do
+		[[ ${ucrcounter[nameserver]} -gt 3 ]] && break
 		ucrchanges+=("nameserver${ucrcounter[nameserver]}=${ns}")
 		ucrcounter[nameserver]=$((${ucrcounter[nameserver]} + 1))
 		debug $(host ${ns})
 	done
 	#
-	for ns in ${forwarder[@]:-}; do
-		[[ ${ucrcounter[forwarder]} > 3 ]] && break
+	for ns in ${forwarder[@]:-} ${forwarder[@]:-} ${forwarder[@]:-}; do
+		[[ ${ucrcounter[forwarder]} -gt 3 ]] && break
 		ucrchanges+=("dns/forwarder${ucrcounter[forwarder]}=${ns}")
 		ucrcounter[forwarder]=$((${ucrcounter[forwarder]} + 1))
 		debug $(host ${ns})

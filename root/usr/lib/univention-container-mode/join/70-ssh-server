@@ -38,7 +38,7 @@ source /usr/lib/univention-container-mode/utils.sh || exit 1
 # }
 
 ## ucr shell
-eval "$(ucr shell hostname domainname)"
+# eval "$(ucr shell hostname domainname)"
 
 ## declare
 declare -a ucrchanges
@@ -66,9 +66,6 @@ lastlog=/var/log/lastlog
 	chmod 0664 ${lastlog}
 }
 #
-# shwo public keys from ${hostname}.${domainname}
-ssh-keyscan ${hostname}.${domainname} 2>/dev/null
-#
 ## SSH server for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"
 
@@ -83,8 +80,6 @@ UniventionConfigCommit ${ucrcommit[@]}
 
 ## cleanup
 unset \
-	hostname \
-	domainname \
 	ucrchanges ucrremoves ucrcounter ucrcommit
 
 debug "### CLEAN SCRIPT($(pwd)/$0) ###"

@@ -40,7 +40,7 @@ ConditionPathExists=/dev/shm/univention-container-mode.env
 ConditionPathExists=/usr/lib/univention-container-mode
 ConditionPathExists=/var/univention-join/joined
 ConditionPathExists=/var/univention-join/status
-ConditionPathExists=/etc/univention/base.conf
+ConditionPathExists=/etc/machine.secret
 
 [Service]
 Type=oneshot
@@ -50,6 +50,7 @@ WorkingDirectory=/usr/lib/univention-container-mode
 ExecStartPre=-/usr/bin/run-parts  --verbose --  preinit.d
 ExecStart=-/usr/bin/run-parts     --verbose --     init.d
 ExecStartPost=-/usr/bin/run-parts --verbose -- postinit.d
+ExecStartPost=-/usr/bin/systemctl reset-failed
 ExecStartPost=-/usr/bin/systemctl \
   stop -- univention-container-mode-environment.service
 

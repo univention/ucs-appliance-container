@@ -57,11 +57,13 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 #
 restore=/var/backups/univention-container-mode
 #
-# restore only if we have a vaild backup and a nice version compare
-#  find more in ( join/99-system-restore-initialize )
+# restore only if we have a vaild backup and a nice version compare, never downgrade the system
+#  find more in ( join/99-system-restore-initialize and recreate/50-system-restore )
 [[ -f ${restore}/restore ]] && {
-	dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) ge $(<${restore}/restore) ||
+	dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) le $(<${restore}/restore) || {
+		echo "ERROR: CAN NOT DOWNGRADE THE SYSTEM, YOU CAN TRY AN OLDER CONTAINER IMAGE LIKE(univention/univention-corporate-server:$(ucr get version/version)-$(ucr get version/patchlevel)) ..."
 		rm --force --verbose ${restore}/restore
+	}
 }
 #
 # add default dependencies for restore/recreate, this will save a lot of time

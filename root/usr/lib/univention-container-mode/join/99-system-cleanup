@@ -78,9 +78,10 @@ for name in "initrd.img" "vmlinuz" "install"; do
 		-name "*${name}*" \
 		-exec rm --force --verbose {} \;
 done
-# clean grub boot stuf from install
 #
+# clean grub boot stuf from install
 rm --force --recursive --verbose /boot/*
+#
 # clean systemd service unit file(s)
 for unit in univention-welcome-screen; do
 	find /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system \
@@ -90,30 +91,40 @@ for unit in univention-welcome-screen; do
 done
 #
 # clean man, doc and locale
-find /usr/share/{man,doc,locale} \
-	-depth \
-	-empty \
-	-delete
+for share in man doc locale; do
+	[[ -d /usr/share/${share} ]] && find /usr/share/${share} \
+		-depth \
+		-empty \
+		-delete
+done
 #
-# reload systemd daemon
-systemctl daemon-reload
+# reload systemd daemon ( or exit for container build process )
+if ifSystemd; then
+	systemctl daemon-reload
+else
+	exit 0
+fi
 #
 # enable and start default service unit(s)
-for service in atd bind9 cron named nscd nslcd ntp postfix rsync rsyslog slapd ssh stunnel4; do
+for service in $(UniventionDefaultServices); do
 	systemctl cat -- ${service}.service >/dev/null 2>&1 && systemctl enable -- ${service}.service 2>/dev/null || continue
 	systemctl start -- ${service}.service || /bin/true
 done
 #
 # enable default timer
-for service in apt-daily apt-daily-upgrade logrotate phpsessionclean; do
+for service in $(UniventionDefaultTimers); do
 	systemctl enable -- ${service}.timer || /bin/true
 done
 #
-# enable univention service unit(s)
-for service in $(find /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system -type f -name univention*service -exec basename {} \;); do
-	echo ${service} | egrep --quiet --invert-match -- "^(univention-container-mode|univention-welcome-screen|.*@.service$)" && {
-		systemctl enable -- ${service} 2>/dev/null || /bin/true
-	}
+# enable and start univention service unit(s)
+for service in $(UniventionServiceUnits); do
+	systemctl enable -- ${service} 2>/dev/null && systemctl start -- ${service} || /bin/true
+done
+#
+# enable and start univention service unit(s) from univention config registry
+for set in false yes; do
+	ucr search --brief autostart | awk '/(yes|true|false)$/{ gsub(/\:.*$/,"",$0); print $0 }' |
+		xargs --no-run-if-empty -I {} univention-config-registry set '{}'=${set} || /bin/true
 done
 #
 # start exited unit(s)

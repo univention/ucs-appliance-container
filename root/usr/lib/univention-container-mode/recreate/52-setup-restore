@@ -136,8 +136,18 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 #
 # restore only if we have a vaild backup ( join/99-system-restore-initialize )
 [[ -f ${restore}/restore ]] && [[ -d ${restore}/ldap ]] && command -v ${rsync} && command -v ${tar} && {
+	VERSION=$(sed --regexp-extended 's/^([[:digit:]]).([[:digit:]]).([[:digit:]])$/\1.\2-\3/g' <${restore}/restore)
+	version=$(ucr get version/version)-$(ucr get version/patchlevel)
 	RSYNC="${rsync} --archive --verbose --delete"
 	TAR="${tar} --extract --overwrite --verbose"
+	#
+	# check and upgrade the system before restoring ( maximize the chances of a successful restore process )
+	dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) gt 5.0.0 && {
+		dpkg --compare-versions ${version} lt ${VERSION} &&
+			until univention-upgrade --updateto ${VERSION} --ignoressh --ignoreterm --noninteractive; do
+				[[ ${?} == 5 ]] && sleep 3 || break
+			done
+	}
 	#
 	# restore app dependencies ( prepare a maximum to overwrite for known apps )
 	for app in $(

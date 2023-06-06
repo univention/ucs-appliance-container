@@ -53,17 +53,21 @@ declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
 
 debug "### START SCRIPT($(pwd)/$0) ###"
-## set Acquire User Agent from build to firstboot,${role:-master} for container mode environment
+## set Acquire User Agent from build to <firstboot OR pre-installed-role>,${role:-master} for container mode environment
 #
 conf=/etc/apt/apt.conf.d/55user_agent
 #
+UniventionPreInstalledRoleCheck 2>/dev/null &&
+	BOOT='PRE-INSTALLED-ROLE' ||
+	BOOT='FIRSTBOOT'
+#
 [[ -f ${conf} ]] &&
-	sed -i 's/BUILD/FIRSTBOOT'$(
+	sed -i "s/BUILD/${BOOT}$(
 		[[ ${role:-master} =~ ^[a-zA-Z]{5,6}$ ]] && echo ${role:-master} |
 			awk '{ printf "," toupper($1) }'
-	)'/g' ${conf}
+	)/g" ${conf}
 #
-## set Acquire User Agent from build to firstboot,${role:-master} for container mode environment
+## set Acquire User Agent from build to <firstboot OR pre-installed-role>,${role:-master} for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"
 
 ## ucr removes

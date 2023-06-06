@@ -25,11 +25,11 @@ Here you will find advanced example(s) for running a ucs with different systems 
 ## [Advanced container image build with bootstrap](docs/README.ADVANCED.BUILD.md)
 Build your own minbase container image from scratch and directly from testing repository ( [updates-test.software-univention.de](https://updates-test.software-univention.de/) ) to your local container registry.
 
+## [Advanced container image build with pre installed role](docs/README.ADVANCED.BUILD.PRE.INSTALLED.ROLE.md)
+Build your own container image with pre installed role of [primary](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) directory node or [managed](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node) node to your local container registry.
+
 ## [Extended usage](docs/README.EXTENDED.USAGE.md)
 Would you like to expand the project for yourself? Have a look at the section [extended usage](docs/README.EXTENDED.USAGE.md) and read about the possibilities with a [template](root/usr/lib/univention-container-mode/template) file and how to place it. But if you think, that will be great for all of us, check [this on](CONTRIBUTING.md) too.
-
-## [Clean sensitive credentials from container environment](docs/README.ENVIRONMENT.CLEANUP.md)
-You don't wan't sensitive credentials in your environment variables after an succeeded first start/boot, take a look into this section to cleanup your container.
 
 ## [Contributing](CONTRIBUTING.md)
 
