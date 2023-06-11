@@ -244,6 +244,11 @@ It’s always a good idea to save your ``` home ``` and/or ``` root ``` director
 --volume ${CONTAINER-VOLUME-ROOT}:/root:rw
 ```
 
+You need support for huge pages [dev-hugepages.mount](https://github.com/systemd/systemd/blob/main/units/dev-hugepages.mount)?
+```bash
+--volume /dev/hugepages:/dev/hugepages
+```
+
 If you plan to use [Docker in Docker](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities), try this for a small perfomance boost for any inner containers ( [overlay storage inside overlay storage isn't nice](https://jpetazzo.github.io/2015/09/03/do-not-use-docker-in-docker-for-ci/) ).
 
 SETP 0.) Be sure the module ```xfs``` is permanently loaded in your system or directly in your linux kernel.
