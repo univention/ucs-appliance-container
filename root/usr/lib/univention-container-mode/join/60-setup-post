@@ -55,13 +55,17 @@ declare -A ucrcommit
 debug "### START SCRIPT($(pwd)/$0) ###"
 ## Setup post for container mode environment
 #
-# start force all univention init.d service unit(s)
+# start all univention service unit(s)
 find \
 	/etc/init.d \
 	-executable \
 	-name univention* \
 	-type f \
 	-exec {} start \; >/dev/null 2>&1 || /bin/true
+#
+for service in $(UniventionServiceUnits); do
+	systemctl start -- ${service} >/dev/null 2>&1 || /bin/true
+done
 #
 # reload systemd daemon
 systemctl daemon-reload

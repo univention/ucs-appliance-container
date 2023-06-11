@@ -57,28 +57,30 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 #
 restore=/var/backups/univention-container-mode
 #
-# restore force if we have a vaild backup and set a nice version compare
+# restore force if we have a vaild backup
 #  find more in ( join/99-system-restore-initialize )
-[[ -f ${restore}/restore ]] && [[ ${RESTORE-} =~ ^force|FORCE$ ]] && {
-	ARCH="amd64"
-
-	MAJOR=$(tr --complement --delete '[:digit:]' <${restore}/restore | awk NF=NF FS= | awk '{ print $1 }')
-	MINOR=$(tr --complement --delete '[:digit:]' <${restore}/restore | awk NF=NF FS= | awk '{ print $2 }')
-	PATCH=$(tr --complement --delete '[:digit:]' <${restore}/restore | awk NF=NF FS= | awk '{ print $3 }')
-
-	SUITE="ucs${MAJOR}${MINOR}${PATCH}"
-
-	[[ -f /etc/apt/mirror.url ]] && MIRROR=$(tr --delete '\n' </etc/apt/mirror.url) || MIRROR="https://updates.software-univention.de"
-
-	[[ ${MAJOR} -ge 5 ]] || MIRROR="${MIRROR}/${MAJOR}.${MINOR}/maintained/${MAJOR}.${MINOR}-${PATCH}"
-
-	if [[ ${MAJOR} -ge 5 ]]; then
-		echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR} ${SUITE/ucs/errata} main" > \
-			/etc/apt/sources.list
-	else
-		echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR/${MAJOR}.${MINOR}-${PATCH}/component} ${MAJOR}.${MINOR}-${PATCH}-errata/all/\ndeb [arch=${ARCH}] ${MIRROR/${MAJOR}.${MINOR}-${PATCH}/component} ${MAJOR}.${MINOR}-${PATCH}-errata/${ARCH}/" > \
-			/etc/apt/sources.list
-	fi
+[[ -f ${restore}/restore ]] && {
+	#
+	VERSION=$(tr --complement --delete '[:digit:]' <${restore}/restore)
+	#
+	version=$(
+		awk '\
+			/ucs/{ \
+				for(i=0;i<=NF;i++){ \
+					if ( $i ~ /^ucs/) { gsub(/^ucs/,"",$i); printf $i } \
+				} \
+			}' $(find /etc/apt/sources.list /etc/apt/sources.list.d -type f -name *.list)
+	)
+	#
+	# restore when the server role is not set and a nice version was found compared to the backup
+	#  ( never try to automatically downgrade the system, but respect the requested value )
+	[[ $(ucr get server/role 2>/dev/null) =~ ^$ ]] &&
+		test ${version} -lt ${VERSION} && RESTORE=${RESTORE:-FORCE}
+	#
+	# set a nice version compare if requested or detected
+	#  ( upgrade the system )
+	[[ ${RESTORE-} =~ ^force|FORCE$ ]] &&
+		VERSION=${VERSION} LATEST=TRUE /bin/bash ${0/recreate/join}
 }
 #
 ## restore/recreate the container mode environment

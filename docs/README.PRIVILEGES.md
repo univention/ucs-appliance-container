@@ -33,7 +33,7 @@ test $(docker info --format '{{.CgroupVersion}}') = 1 || echo "CGroupsV$(docker 
 test $(docker info --format '{{.CgroupDriver}}' ) = systemd || echo "CGroupsDriver $(docker info --format '{{.CgroupDriver}}') isn't recommended. You can configure your runtime option to < dockerd --exec-opt native.cgroupdriver=systemd > ( https://docs.docker.com/engine/reference/commandline/dockerd/#docker-runtime-execution-options )"
 ```
 
-And finaly, depend your Docker version, the option ( ```--cap-add CAP_MKNOD``` ) may not be supported or be called something else ( ```--cap-add MKNOD``` ). Test the deployment with both styles or without the option.
+And finaly, depend your Docker or Podman version, the option ( ```--cap-add CAP_MKNOD``` ) may not be supported or be called something else ( ```--cap-add MKNOD``` ). Test the deployment with both styles or without the option.
 
 ### (option -- A) container with minimal privileg excluding [Docker in Docker](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) and excluding all types of packages that need higher system privileges.
 ```bash
@@ -52,6 +52,16 @@ podman run \
   --cap-add CAP_MKNOD \
   --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
   --cap-add CAP_NET_RAW \
+    univention-corporate-server
+```
+
+Podman >= 3.1.0[^1].
+```bash
+podman run \
+  --detach \
+  --systemd true \
+  --cap-add SYS_ADMIN \
+  --cap-add CAP_MKNOD \
     univention-corporate-server
 ```
 
@@ -83,6 +93,19 @@ podman run \
     univention-corporate-server
 ```
 
+Podman >= 3.1.0[^1].
+```bash
+podman run \
+  --detach \
+  --systemd true \
+  --cap-add SYS_ADMIN \
+  --cap-add CAP_MKNOD \
+  --cap-add SYS_MODULE \
+  --volume /lib/modules:/lib/modules:ro \
+  --cap-add SYS_TIME \
+    univention-corporate-server
+```
+
 Read more about [SYS_ADMIN, CAP_MKNOD and SYS_MODULE](https://systemd.io/CONTAINER_INTERFACE/), also check [systemd](https://www.freedesktop.org/software/systemd/man/systemd-detect-virt.html) virt environment detection.
 
 Also these container security options for [apparmor](https://docs.docker.com/engine/security/apparmor/) or [seccomp](https://docs.docker.com/engine/security/seccomp/) are good to know, use ```( --security-opt apparmor=unconfined ) OR ( --security-opt seccomp=unconfined )``` to disable apparmor or seccomp. Give it a try if you are in trouble with NFS. But make sure to later config apparmor/seccomp too.
@@ -96,3 +119,15 @@ docker run \
   --volume /lib/modules:/lib/modules:ro \
     univention-corporate-server
 ```
+
+Podman >= 3.1.0[^1].
+```bash
+podman run \
+  --detach \
+  --privileged \
+  --systemd true \
+  --volume /lib/modules:/lib/modules:ro \
+    univention-corporate-server
+```
+
+[^1]: Update for Podman >= 3.1.0 and/or a fresh installed fedora >= 37 (container runs from root user), maybe you don't need to fix your system for CgroupsV1. [Run Podman with systemd support ... podman run ... --systemd true](https://docs.podman.io/en/latest/markdown/podman-run.1.html#systemd-true-false-always).

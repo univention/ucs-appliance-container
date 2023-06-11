@@ -69,6 +69,9 @@ mountpoint --quiet /var/lib/docker >/dev/null 2>&1 && { # DinD YES/NO ?
 
 	BashCompletion=/etc/bash_completion.d
 
+	# enable appcenter/docker
+	ucr set appcenter/docker=enabled
+
 	# unmask/enable/start socket and service unit(s)
 	units unmask enable start
 
@@ -99,7 +102,7 @@ mountpoint --quiet /var/lib/docker >/dev/null 2>&1 && { # DinD YES/NO ?
 
 	docker version >/dev/null 2>&1 || { # DinD NO
 		ucrchanges+=("appcenter/docker=false")
-		units stop disable mask
+		units stop disable mask reset-failed
 	}
 
 }

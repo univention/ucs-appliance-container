@@ -9,9 +9,24 @@ This is the container environment with additional amount settings and some recom
 The systemd service units [univention-container-mode-firstboot](../root/usr/lib/systemd/system/univention-container-mode-firstboot.service) and [univention-container-mode-recreate](../root/usr/lib/systemd/system/univention-container-mode-recreate.service) has some start conditions to detect an old container environment.
 
 ```bash
+systemctl cat univention-container-mode-pre-installed-role.service
+...
+[Unit]
+...
+OnFailure=univention-container-mode-pre-installed-role-on-failure.service
+...
+ConditionPathExists=!/var/univention-join/joined
+ConditionPathExists=!/var/univention-join/status
+ConditionPathExists=/etc/univention/base.conf
+...
+```
+
+```bash
 systemctl cat univention-container-mode-firstboot.service
 ...
 [Unit]
+...
+OnFailure=univention-container-mode-firstboot-on-failure.service
 ...
 ConditionPathExists=!/var/univention-join/joined
 ConditionPathExists=!/var/univention-join/status
@@ -24,9 +39,30 @@ systemctl cat univention-container-mode-recreate.service
 ...
 [Unit]
 ...
+OnFailure=univention-container-mode-recreate-on-failure.service
+...
 ConditionPathExists=/var/univention-join/joined
 ConditionPathExists=/var/univention-join/status
-ConditionPathExists=!/etc/univention/base.conf
+ConditionPathExists=!/etc/machine.secret
+...
+```
+
+If something goes wrong, have a look at the ``` OnFailure ``` option and you will see that systemd will try a second start/boot. This is happend if you deploy from an old container image and the first ``` apt-get dist-upgrade ``` goes wrong. This means that any ``` OnFailure ``` service unit can take control as long as the system has not been jointed. Also good to know; If systemd has to upgrade, the container will starts over once or twice.
+
+```bash
+systemctl cat univention-container-mode-{firstboot,recreate,pre-installed-role}-on-failure.service
+...
+[Unit]
+...
+Description=
+Description=Univention container mode ... ( on failure )
+...
+ConditionPathExists=!/var/univention-join/joined
+ConditionPathExists=!/var/univention-join/status
+ConditionPathExists=!/etc/machine.secret
+...
+[Install]
+WantedBy=
 ...
 ```
 
@@ -44,7 +80,7 @@ If there is a vaild backup available, you can set force an old version inside th
 ```bash
 --env RESTORE=(force|FORCE)
 ```
-This be expected to fix the problem of losing your manual changes with ``` docker-compose pull && docker-compose up ( --force-recreate ) ``` in future for rudimentary services like ldap, ssl, ssh ... . But remember, you can't change the ```${hostname}``` or ```${domainname}```!
+This be expected to fix the problem of losing your manual changes with ``` docker compose pull && docker compose up ( --force-recreate ) ``` in future for rudimentary services like ldap, ssl, ssh ... . But remember, you can't change the ```${hostname}``` or ```${domainname}```!
 
 ```bash
 --volume ${CONTAINER-VOLUME-BACKUPS}:/var/backups:rw
@@ -54,7 +90,7 @@ Otherwise, use a volume like ``` --volume ${DOCKER-VOLUME-BACKUP}:/var/backups/u
 
 ```bash
 --volume ${CONTAINER-VOLUME-BACKUP}:/var/backups/univention-container-mode:rw
---volume ${CONTAINER-VOLUME-JOINED}:/var/univention-join:rw ( optionally )
+--volume ${CONTAINER-VOLUME-JOINED}:/var/univention-join:rw ( recommended )
 ```
 
 ```bash
@@ -79,8 +115,8 @@ ls -1 /var/backups/univention-container-mode*
 ( STATUS IN PERCERNT ) package(s) synonym
 ```
 
-To be sure that the systemd service unit [univention-container-mode-backup](../root/usr/lib/systemd/system/univention-container-mode-backup.service) will work well, check your default [StopTimeout](https://docs.docker.com/engine/reference/commandline/stop/) for minimum of 300 seconds or use the container run / container compose option ``` --stop-timeout 300 ``` / ``` --stop-grace-period 300 ``` ( [docker run ... --stop-timeout 300](https://docs.docker.com/engine/reference/commandline/run/#stop-container-with-timeout---stop-timeout) / [docker service create ... --stop-grace-period 300](https://docs.docker.com/compose/compose-file/compose-file-v3/#stop_grace_period) ).
-Alternative just add ``` --shutdown-timeout 300 ``` or ``` { ..."shutdown-timeout": 300... } ``` to your docker daemon or docker daemon config file.
+To be sure that the systemd service unit [univention-container-mode-backup](../root/usr/lib/systemd/system/univention-container-mode-backup.service) will work well, check your default [StopTimeout](https://docs.docker.com/engine/reference/commandline/stop/) for minimum of 300 seconds or use the container run / container compose option ``` --stop-timeout 300 ``` / ``` --stop-grace-period 300s ``` ( [docker run ... --stop-timeout 300](https://docs.docker.com/engine/reference/commandline/run/#stop-timeout) / [docker service create ... --stop-grace-period 300s](https://docs.docker.com/compose/compose-file/compose-file-v3/#stop_grace_period) ).
+Alternative just add ``` --shutdown-timeout 300 ``` or ``` { ..."shutdown-timeout": 300... } ``` to your docker daemon or docker daemon config file. If you want the same for restart, you have to use the ``` --time 300 ``` / ``` --timeout 300 ``` option manually ( [docker restart ... --time 300 ...](https://docs.docker.com/engine/reference/commandline/restart/#options) / [docker compose restart ... --timeout 300 ...](https://docs.docker.com/engine/reference/commandline/compose_restart/#options) )
 
 ```bash
 ucr search --brief ^appcenter/apps | awk '/installed$/{ split($1,APP,"/"); print APP[3] }'
@@ -206,6 +242,11 @@ It’s always a good idea to save your ``` home ``` and/or ``` root ``` director
 
 ```bash
 --volume ${CONTAINER-VOLUME-ROOT}:/root:rw
+```
+
+You need support for huge pages [dev-hugepages.mount](https://github.com/systemd/systemd/blob/main/units/dev-hugepages.mount)?
+```bash
+--volume /dev/hugepages:/dev/hugepages
 ```
 
 If you plan to use [Docker in Docker](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities), try this for a small perfomance boost for any inner containers ( [overlay storage inside overlay storage isn't nice](https://jpetazzo.github.io/2015/09/03/do-not-use-docker-in-docker-for-ci/) ).

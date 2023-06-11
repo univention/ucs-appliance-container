@@ -47,7 +47,8 @@ univention-check-join-status: Joined successfully
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow --unit univention-container-mode-init.service
 
-docker exec --interactive --tty ${FQDN} watch -n 0,5 ps -axf
+docker exec --interactive --tty ${FQDN} watch -n 0,5 ps -axf || watch -n 1 docker exec ${FQDN} \
+  systemctl status --no-pager univention-container-mode-firstboot.service univention-container-mode-firstboot-on-failure.service
 
 docker exec --interactive --tty ${FQDN} /bin/bash
 ```
@@ -110,7 +111,8 @@ univention-check-join-status: Joined successfully
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow --unit univention-container-mode-init.service
 
-docker exec --interactive --tty ${FQDN} watch -n 0,5 ps -axf
+docker exec --interactive --tty ${FQDN} watch -n 0,5 ps -axf || watch -n 1 docker exec ${FQDN} \
+  systemctl status --no-pager univention-container-mode-firstboot.service univention-container-mode-firstboot-on-failure.service
 
 docker exec --interactive --tty ${FQDN} /bin/bash
 ``` 
@@ -171,7 +173,8 @@ univention-check-join-status: Joined successfully
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow --unit univention-container-mode-init.service
 
-docker exec --interactive --tty ${FQDN} watch -n 0,5 ps -axf
+docker exec --interactive --tty ${FQDN} watch -n 0,5 ps -axf || watch -n 1 docker exec ${FQDN} \
+  systemctl status --no-pager univention-container-mode-firstboot.service univention-container-mode-firstboot-on-failure.service
 
 docker exec --interactive --tty ${FQDN} /bin/bash
 ``` 
@@ -232,7 +235,8 @@ univention-check-join-status: Joined successfully
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow
 docker exec --interactive --tty ${FQDN} journalctl --all --no-hostname --follow --unit univention-container-mode-init.service
 
-docker exec --interactive --tty ${FQDN} watch -n 0,5 ps -axf
+docker exec --interactive --tty ${FQDN} watch -n 0,5 ps -axf || watch -n 1 docker exec ${FQDN} \
+  systemctl status --no-pager univention-container-mode-firstboot.service univention-container-mode-firstboot-on-failure.service
 
 docker exec --interactive --tty ${FQDN} /bin/bash
 ``` 

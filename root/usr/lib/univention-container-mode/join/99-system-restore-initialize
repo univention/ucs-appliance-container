@@ -33,9 +33,13 @@
 source /usr/lib/univention-container-mode/utils.sh || exit 1
 
 ## function(s)
-# function name() { # name: (IN)[>(OUT)]
-# 	echo function
-# }
+function recreateSambaBackupDatabases() { # recreateSambaBackupDatabases: (IN)[>(OUT)]
+	find ${1:-/var/lib/samba} \
+		-type f \
+		-regextype posix-egrep -regex '.*\.(l|t)db$' -and -not -regex '.*netlogon_creds_cli\.(l|t)db$' \
+		-exec rm --force {}.bak \; -exec tdbbackup {} \;
+	sleep 3
+}
 
 ## ucr shell
 eval "$(ucr shell hostname domainname ldap/base server/role backup/clean/min/backups)"
@@ -48,6 +52,7 @@ declare -a ucrremoves
 
 declare -A ucrcounter
 # ucrcounter[<STRING>]=<INT>
+ucrcounter[samba]=1
 
 declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
@@ -58,6 +63,8 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 #   => fix docker-compose pull && docker-compose up
 #    => look univention-container-mode-backup.service and
 #    => look univention-container-mode-restore.service too
+#
+service=/lib/systemd/system/univention-container-mode-backup.service
 #
 restore=/var/backups/univention-container-mode
 #
@@ -75,6 +82,11 @@ command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && com
 	TAR="${tar} --create --overwrite"
 	#
 	[[ ${BACKUPS-} =~ ^1|yes|true|YES|TRUE$ ]] && mkdir --parents ${restore}
+	#
+	[[ ${DEBUG-} =~ ^1|yes|true|YES|TRUE$ ]] && [[ -f ${service} ]] && mkdir --parents ${service}.d && {
+		[[ -f ${service}.d/debug.conf ]] ||
+			echo -e "[Service]\nEnvironment=\"DEBUG=${DEBUG-}\"" >${service}.d/debug.conf
+	}
 	#
 	# check if we have a mountpoint or even a directory to store the rudimentary backup
 	mountpoint --quiet ${restore} || [[ -d ${restore} ]] && univention-check-join-status 2>&1 |
@@ -121,11 +133,9 @@ command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && com
 			# save LDAP as LDIF ( translog )
 			slapcat -n 2 -f /etc/ldap/slapd.conf -l \
 				${restore}/ldap/slapcat.translog.ldif
-			# save LDAP as LDIF ( ldapsearch )
-			(
-				ldapsearch -LLL -D cn=admin,${ldap_base} -y /etc/ldap.secret 2>/dev/null ||
-					ldapsearch -LLL -D cn=backup,${ldap_base} -y /etc/ldap-backup.secret
-			) > \
+			# save LDAP as LDIF ( ldapsearch as an additional database with permission to fail )
+			univention-ldapsearch 2>/dev/null > \
+				${restore}/ldap/ldapsearch.ldif || rm --force \
 				${restore}/ldap/ldapsearch.ldif
 			# save LDAP local schema
 			${RSYNC} /var/lib/univention-ldap/local-schema ${restore}/ldap/schema
@@ -153,28 +163,24 @@ command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && com
 		}
 		[[ -d ${restore}/samba ]] && {
 			#
-			SambaDatabasesExcludeKeyFilter=(netlogon\_creds\_cli)
-			#
 			# save samba ( drivers, netlogon, printers, private, sysvol )
 			for dir in $(find /var/lib/samba -maxdepth 1 -type d); do
 				# save separate archives with all databases included
-				[[ ${dir} =~ (samba|private)$ ]] && {
-					# force recreate backup databases ( *.(l|t)db.bak )
-					find ${dir} \
-						-type f \
-						-regextype posix-egrep -regex ".*\.(l|t)db$" -and -not -regex ".*${SambaDatabasesExcludeKeyFilter}\.(l|t)db$" \
-						-exec rm --force {}.bak \; -exec tdbbackup {} \; 2>/dev/null
+				cd / && [[ ${dir} =~ (samba|private)$ ]] && {
+					# recreate backup databases ( *.(l|t)db.bak )
+					recreateSambaBackupDatabases
+					ucrcounter[samba]=1
 					# save databases and backup databases in once (
 					#  => ignore   : file changed as we read it
 					#  => transform: *.(l|t)db.bak to *.(l|t)db
 					# )
-					cd / &&
-						find ${dir/\//} \
-							-type f \
-							-regextype posix-egrep -regex ".*\.(l|t)db($|.bak$)" \
-							-exec ${TAR} --transform 's/.bak$//' --warning=no-file-changed --file=${restore}/samba/$(basename ${dir}).databases.xz --xz {} \+
-					cd ${OLDPWD:-/usr/lib/univention-container-mode}
+					until find ${dir/\//} -type f -regextype posix-egrep -regex ".*\.(l|t)db($|.bak$)" \
+						-exec ${TAR} --transform 's/.bak$//' --warning=no-file-changed --file=${restore}/samba/$(basename ${dir}).databases.xz --xz {} \+; do
+						[[ ${ucrcounter[samba]} -gt 3 ]] && break || recreateSambaBackupDatabases
+						ucrcounter[samba]=$((${ucrcounter[samba]} + 1))
+					done
 				}
+				cd ${OLDPWD:-/usr/lib/univention-container-mode}
 				[[ ${dir} =~ private$ ]] && {
 					${RSYNC} --exclude=*.sock --exclude=ldap* ${dir}/ ${restore}/samba/$(basename ${dir})
 				}

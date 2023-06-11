@@ -34,9 +34,10 @@ This will also set some ```BASH``` options
   set -o pipefail
 ```
 
-#### set the latest version by [GitHub default branch](https://github.com/univention/univention-corporate-server/branches) DEFAULT(TRUE)
+#### set the latest version by Univention default repository mirror [releases](https://updates.software-univention.de/ucs-releases.json), [testing](https://updates-test.software-univention.de/ucs-releases.json) or as fallback from [GitHub default branch](https://github.com/univention/univention-corporate-server/branches) DEFAULT(TRUE|SKIPP)
+Read more in section [advanced container image build with pre installed role](README.ADVANCED.BUILD.PRE.INSTALLED.ROLE.md) to understand the ``` ( SKIPP ) ``` default value. This will skipp the first dist-upgrade loop. But at the end, it will automatically upgrade to the last release version by ``` ( univention-upgrade --ignoressh --ignoreterm --noninteractive ) ```.
 ```bash
---env LATEST=(1|yes|true|YES|TRUE)
+--env LATEST=(1|yes|true|YES|TRUE) or LATEST=SKIPP
 ```
 
 #### set a specific version and overwrite the default lastest version DEFAULT(UNUSED)

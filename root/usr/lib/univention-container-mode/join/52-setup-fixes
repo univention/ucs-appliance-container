@@ -61,7 +61,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 [[ -z ${role:-} ]] && role=master
 
 role=$(
-	echo -n ${role:-} | awk '\
+	printf "%s" ${role:-} | awk '\
 	 /^[a-zA-Z]/{ printf tolower($1) } \
 	!/^[a-zA-Z]/{ printf "master" }'
 )
@@ -70,7 +70,7 @@ role=$(
 #
 UniventionSystemInstallSystemRolePrefix="univention-server-"
 UniventionSystemInstallSystemRole=$(
-	apt-cache search ${UniventionSystemInstallSystemRolePrefix} | egrep "^${UniventionSystemInstallSystemRolePrefix}${role}\s" |
+	apt-cache search ${UniventionSystemInstallSystemRolePrefix} | egrep -- "^${UniventionSystemInstallSystemRolePrefix}${role}\s" |
 		awk '\
 			 /^'${UniventionSystemInstallSystemRolePrefix}${role}'/{ printf $1 } \
 			!/^'${UniventionSystemInstallSystemRolePrefix}${role}'/{ printf "" }'

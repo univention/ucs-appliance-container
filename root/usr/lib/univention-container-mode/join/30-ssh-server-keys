@@ -1,7 +1,6 @@
 #!/bin/bash
-# https://forge.univention.org/bugzilla/show_bug.cgi?id=54311
 #
-# Univention Container Mode - setup-post-certificate-patch
+# Univention Container Mode - ssh-server-keys
 #
 # Copyright 2020-2021 Univention GmbH
 #
@@ -54,18 +53,20 @@ declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
 
 debug "### START SCRIPT($(pwd)/$0) ###"
-## Certificates patche for container mode environment
+## SSH server, force renew host keys if older than 15 min for container mode environment
 #
-cron=/etc/cron.d/univention-container-mode-certificate-patch
+ssh=/etc/ssh
+key='*key*'
+min=15
 #
-CertificateCommand="univention-certificate"
-CertificatePackage="univention-ssl"
+[[ -d ${ssh} ]] && [[ -f $(find ${ssh} -type f -mmin +${min} -name ${key} | head -1) ]] && {
+	find ${ssh} -type f -mmin +${min} -name ${key} -delete &&
+		dpkg-reconfigure --force --frontend noninteractive \
+			openssh-server 2>/dev/null || /bin/true
+	rm --force --verbose ${ssh}/sshd_config.ucf-dist
+}
 #
-[[ -f $(command -v ${CertificateCommand} 2>/dev/null | head -1).orig ]] && [[ -d $(dirname ${cron}) ]] && cat <<EOF >${cron}
-30 03 * * $(date +%u -d '+3 days') root /bin/bash -c 'rm --force --verbose ${cron}; apt-mark unhold ${CertificatePackage}'
-EOF
-#
-## Certificates patche for container mode environment
+## SSH server, force renew host keys if older than 15 min for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"
 
 ## ucr removes

@@ -123,7 +123,7 @@ LdifTranslog=${restore}/ldap/slapcat.translog.ldif
 #
 InstallIndex=/usr/lib/univention-install/.index.txt
 #
-services=(cron slapd univention-directory-notifier univention-directory-listener samba)
+services=(cron nslcd slapd univention-directory-notifier univention-directory-listener samba)
 #
 openldap=openldap
 #
@@ -136,8 +136,18 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 #
 # restore only if we have a vaild backup ( join/99-system-restore-initialize )
 [[ -f ${restore}/restore ]] && [[ -d ${restore}/ldap ]] && command -v ${rsync} && command -v ${tar} && {
+	VERSION=$(sed --regexp-extended 's/^([[:digit:]]).([[:digit:]]).([[:digit:]])$/\1.\2-\3/g' <${restore}/restore)
+	version=$(ucr get version/version)-$(ucr get version/patchlevel)
 	RSYNC="${rsync} --archive --verbose --delete"
 	TAR="${tar} --extract --overwrite --verbose"
+	#
+	# check and upgrade the system before restoring ( maximize the chances of a successful restore process )
+	dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) gt 5.0.0 && {
+		dpkg --compare-versions ${version} lt ${VERSION} &&
+			until univention-upgrade --updateto ${VERSION} --ignoressh --ignoreterm --noninteractive; do
+				[[ ${?} == 5 ]] && sleep 3 || break
+			done
+	}
 	#
 	# restore app dependencies ( prepare a maximum to overwrite for known apps )
 	for app in $(
@@ -152,14 +162,14 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 	#
 	# stop force service unit(s)
 	for service in ${services[@]}; do
-		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ^${service}.service || continue && {
+		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
 			systemctl stop --force -- ${service}.service
 			systemctl status --no-pager --no-legend -- ${service}.service || continue
 		}
 	done
 	#
 	# remove the old LDAP and set permissions
-	for dir in ${LdapDatabase} ${LdapTranslog}; do
+	for dir in ${LdapDatabase} ${LdapTranslog} ${LdapPath}; do
 		rm --force --recursive ${dir} && mkdir --parents --verbose ${dir}
 		chown ${openldap}:${openldap} --recursive --verbose ${dir}
 	done
@@ -167,11 +177,11 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 	# remove listener cache
 	rm --recursive --force --verbose /var/lib/univention-directory-listener/*
 	#
-	# restore config from LDIF ( ignore "No dynamic config support for overlay" )
-	[[ -f ${LdifConfig} ]] &&
-		slapadd -cv -n 0 -f ${LdapConfig} -F ${LdapPath} -l ${LdifConfig} ||
-		${RSYNC} $(dirname ${LdifConfig})/etc/ldap /etc/ &&
-		chown ${openldap}:${openldap} --recursive --verbose ${LdapPath}
+	# restore translog from LDIF
+	[[ -f ${LdifTranslog} ]] &&
+		slapadd -cv -n 2 -f ${LdapConfig} -F ${LdapPath} -l ${LdifTranslog} &&
+		univention-config-registry commit ${LdapTranslog}/DB_CONFIG &&
+		chown ${openldap}:${openldap} --recursive --verbose ${LdapTranslog}
 	#
 	# restore database from LDIF
 	[[ -f ${LdifDatabase} ]] &&
@@ -179,11 +189,11 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 		univention-config-registry commit ${LdapDatabase}/DB_CONFIG &&
 		chown ${openldap}:${openldap} --recursive --verbose ${LdapDatabase}
 	#
-	# restore translog from LDIF
-	[[ -f ${LdifTranslog} ]] &&
-		slapadd -cv -n 2 -f ${LdapConfig} -F ${LdapPath} -l ${LdifTranslog} &&
-		univention-config-registry commit ${LdapTranslog}/DB_CONFIG &&
-		chown ${openldap}:${openldap} --recursive --verbose ${LdapTranslog}
+	# restore config from LDIF ( ignore "No dynamic config support for overlay" )
+	[[ -f ${LdifConfig} ]] &&
+		slapadd -cv -n 0 -f ${LdapConfig} -F ${LdapPath} -l ${LdifConfig} ||
+		${RSYNC} $(dirname ${LdifConfig})/etc/ldap /etc/ &&
+		chown ${openldap}:${openldap} --recursive --verbose ${LdapPath}
 	#
 	# restore local schema
 	[[ -d ${LdapSchema} ]] &&
@@ -279,8 +289,8 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 	}
 	#
 	# (re)start service unit(s)
-	for service in slapd samba; do
-		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ^${service}.service || continue && {
+	for service in nslcd slapd samba; do
+		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
 			systemctl start -- ${service}.service || systemctl restart -- ${service}.service
 			systemctl status --no-pager --no-legend -- ${service}.service || continue
 		}
@@ -309,7 +319,7 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 	#
 	# (re)start service unit(s)
 	for service in ${services[@]}; do
-		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ^${service}.service || continue && {
+		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
 			systemctl start -- ${service}.service || systemctl restart -- ${service}.service
 			systemctl status --no-pager --no-legend -- ${service}.service || continue
 		}

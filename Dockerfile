@@ -143,15 +143,18 @@ RUN \
   /lib/systemd/system/univention-container-mode.target            \
   /etc/systemd/system/default.target
 
-RUN systemctl enable --                                           \
-  univention-container-mode-environment.service                   \
-  univention-container-mode-firstboot.service                     \
-  univention-container-mode-recreate.service                      \
-  univention-container-mode-storage.service                       \
-  univention-container-mode-backup.service                        \
-  univention-container-mode-joined.service                        \
-  univention-container-mode-fixes.service                         \
-  univention-container-mode-init.service
+# univention-container-mode firstboot on failure ( a second try )
+#  systemd need a real file for OnFailure service unit section
+RUN \
+  find                                                            \
+  /lib/systemd/system                                             \
+  -type l -name univention-container-mode*                        \
+  -exec /bin/bash -c 'unit={}; cd $(dirname ${unit});             \
+  cp --verbose --remove-destination $(readlink ${unit}) ${unit}' \;
+
+# univention-container-mode default service unit(s)
+RUN bash -c "source /usr/lib/univention-container-mode/utils.sh;  \
+  UniventionContainerModeDockerfileInit"
 
 RUN systemctl mask --                                             \
   tmp.mount

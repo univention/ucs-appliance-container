@@ -79,8 +79,8 @@ egrep --quiet --recursive -- "Traceback|repository.online.true" /etc/apt/sources
 	UniventionDistUpdate
 }
 #
-# rebuild package index
-apt-cache search . >/dev/null 2>&1
+# rebuild package index ( since debian 11 -- bullseye -- it's very slow )
+timeout 3 apt-cache search . >/dev/null 2>&1 || /bin/true
 #
 # autoremove package(s)
 apt-get autoremove --assume-yes >/dev/null 2>&1

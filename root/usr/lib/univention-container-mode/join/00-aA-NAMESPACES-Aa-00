@@ -53,20 +53,21 @@ declare -A ucrcommit
 # ucrcommit+=/<PATH>/<FILE> OR ucrcommit[<FILE>]=/<PATH>/<FILE>
 
 debug "### START SCRIPT($(pwd)/$0) ###"
-## Test and disable private tmp namespaces for container mode environment
+## Fix private tmp and/or restrict namespaces for container mode environment
+# remove hardening option(s) from known service unit(s)
 #
-units=(univention-container-mode-private-temp)
+privateTmp=(univention-container-mode-private-temp)
 services=(apache2 ntp nagios-nrpe-server)
 #
 # unmask/start service unit(s)
-for unit in ${units[@]}; do
+for unit in ${privateTmp[@]} systemd-logind systemd-timedated memcached; do
 	for stat in unmask start; do
 		systemctl ${stat} -- ${unit}.service >/dev/null 2>&1 || /bin/true
 	done
 done
 #
-for unit in ${units[@]}; do
-	journalctl --output cat --no-hostname --unit ${unit}.service | egrep --quiet -- NAMESPACE || continue && {
+for unit in ${privateTmp[@]} systemd-logind systemd-timedated memcached; do
+	journalctl --full --all --no-pager --no-hostname --unit ${unit}.service | egrep --quiet -- NAMESPACE || continue && {
 		# disable private tmp from known service(s) by override config file
 		for service in ${services[@]}; do
 			conf=/usr/lib/systemd/system/${service}.service.d/disable-private-tmp.conf
@@ -75,20 +76,19 @@ for unit in ${units[@]}; do
 					${conf}
 			}
 		done
-		touch /dev/shm/univention-container-mode.namespace.detected
 	}
 done
 #
 # stop/mask service unit(s)
-for unit in ${units[@]}; do
+for unit in ${privateTmp[@]}; do
 	for stat in stop mask; do
 		systemctl ${stat} -- ${unit}.service >/dev/null 2>&1 || /bin/true
 	done
 done
 #
-systemctl daemon-reload
+UniventionFixServiceUnitNamespace
 #
-## Test and disable private tmp namespaces for container mode environment
+## Fix private tmp and/or restrict namespaces for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"
 
 ## ucr removes

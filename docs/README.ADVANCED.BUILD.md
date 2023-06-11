@@ -80,7 +80,8 @@ VERSION="5.0-3"; IMAGE="univention-corporate-server-debootstrap"; TAG="test"; MI
     --tag univention-corporate-server:${VERSION}-${TAG} \
     --tag univention-corporate-server:${TAG} .
 ...
-COMMIT univention-corporate-server:${VERSION}-${TAG}
+Successfully tagged univention-corporate-server:${VERSION}-${TAG}
+Successfully tagged univention-corporate-server:test
 ...
 real  0m31,228s
 user  0m24,455s
