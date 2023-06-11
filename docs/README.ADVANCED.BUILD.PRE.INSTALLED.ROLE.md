@@ -112,7 +112,8 @@ for role in ${!roles[*]}; do \
     --file ./pre.installed.role.Dockerfile . ; \
 done
 ...
-COMMIT univention-corporate-server-${role}:${VERSION}
+Successfully tagged univention-corporate-server-${role}:${VERSION}
+Successfully tagged univention-corporate-server-${role}:latest
 ...
 ```
 ### Container image build with podman, pre installed role and as Active Directory-compatible Domain Controller ```( experimental )```
@@ -136,7 +137,8 @@ for role in ${!roles[*]}; do \
     --file ./pre.installed.role.Dockerfile . ; \
 done
 ...
-COMMIT univention-corporate-server-${role}${apps}:${VERSION}
+Successfully tagged univention-corporate-server-${role}${apps}:${VERSION}
+Successfully tagged univention-corporate-server-${role}${apps}:latest
 ...
 ```
 ### Inspect the univention-corporate-server-${role} container image size

@@ -54,24 +54,8 @@ declare -A ucrcommit
 
 debug "### START SCRIPT($(pwd)/$0) ###"
 ## Fix private tmp and/or restrict namespaces for container mode environment
-# remove hardening option(s) from known service unit(s)
 #
-units=(logrotate memcached man-db phpsessionclean)
-#
-# unmask/enable/start/restart service unit(s)
-for unit in ${units[@]}; do
-	for stat in unmask enable start restart; do
-		systemctl ${stat} -- ${unit}.service >/dev/null 2>&1 || /bin/true
-	done
-done
-#
-UniventionFixServiceUnitNamespace ${units[@]}
-#
-# start/restart failed service unit(s)
-for stat in start restart; do
-	systemctl list-units --no-pager --no-legend --state failed --type service | awk '/[[:alnum:]].*failed/{ if( $1 ~ /^[[:alnum:]]/ ) { print $1 } else { print $2 } }' |
-		xargs --no-run-if-empty timeout 30 systemctl ${stat} -- >/dev/null 2>&1 || /bin/true
-done
+UniventionFixServiceUnitNamespace
 #
 ## Fix private tmp and/or restrict namespaces for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"

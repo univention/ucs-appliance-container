@@ -147,13 +147,10 @@ UniventionContainerModeRestartCheck
 systemctl enable -- \
 	univention-directory-listener.service || /bin/true
 #
-# don't mask tmp.mount and systemd-logind.service for UCS >= 5.0-0
-dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) ge 5.0.0 && {
+# don't mask tmp.mount for UCS >= 5.0-0
+dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) ge 5.0.0 &&
 	systemctl unmask -- \
 		tmp.mount
-	rm --force --verbose \
-		/usr/lib/systemd/system/systemd-logind.service.d/condition-virtualization-container.conf
-}
 #
 ## check dependencies for container mode environment
 debug "### STOPP SCRIPT($(pwd)/$0) ###"

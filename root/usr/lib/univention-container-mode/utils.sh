@@ -156,6 +156,62 @@ function UniventionLdapSystemInitCheck() { # UniventionLdapSystemInitCheck: void
 	unset secret inst ldap
 }
 #
+UniventionFixServiceUnitNamespace() { # UniventionFixServiceUnitNamespace: void
+	#
+	# get start timestamp ( journalctl --boot don't works inside a container )
+	local since=$(
+		date --date="$(
+			journalctl --full --all --no-pager --no-hostname _SYSTEMD_INVOCATION_ID=$(
+				systemctl show --value --property InvocationID systemd-journald.service
+			) | awk '{ if( NR==2 ) { gsub(/systemd\-journald.*$/,"",$0); print $0 } }'
+		)" '+%F %T'
+	)
+	# failed service unit(s) to fix nicely or forced
+	#  => Main process exited ... NAMESPACE
+	#  => Attaching egress BPF ... failed
+	local filter='' units=(${@} $(
+		journalctl --full --all --no-pager --no-hostname --since "${since}" | awk '/^.*systemd\[1\]\:.*(NAMESPACE|BPF.*cgroup.*failed.*)$/{ gsub(/\:/,"",$0); print $0 }' |
+			sed -E 's/^.*\s(systemd\-[a-z]+|[a-z-]+)\.service.*$/\1/g' | sort -u
+	))
+	local forced="^(Private|Protect|Restrict|NoNewPrivileges|ReadWrite|MemoryDeny|SystemCall|IPAddressDeny|LockPersonality)"
+	local nicely="^(Private|Protect|Restrict)"
+	#
+	if journalctl --full --all --no-pager --no-hostname --since "${since}" | egrep --quiet -- 'BPF.*failed'; then
+		filter=${forced}
+	else
+		filter=${nicely}
+	fi
+	#
+	[[ "${units[@]}" =~ ^$ ]] || units=(${units[@]} systemd-timedated systemd-logind)
+	#
+	# fix failed service unit(s) part I
+	for unit in ${units[@]}; do
+		for stat in cat; do
+			[[ -f /lib/systemd/system/${unit}.service ]] || continue
+			systemctl ${stat} -- ${unit}.service >/dev/null 2>&1 &&
+				egrep --invert-match -- ${filter} \
+					/lib/systemd/system/${unit}.service > \
+					/etc/systemd/system/${unit}.service || continue
+		done
+	done
+	#
+	systemctl daemon-reload
+	#
+	# fix failed service unit(s) part II
+	for unit in ${units[@]}; do
+		for stat in start restart; do
+			[[ -f /etc/systemd/system/${unit}.service ]] || continue
+			systemctl ${stat} -- ${unit}.service >/dev/null 2>&1 ||
+				egrep --invert-match -- ${forced} \
+					/lib/systemd/system/${unit}.service > \
+					/etc/systemd/system/${unit}.service || continue
+		done
+	done
+	#
+	systemctl daemon-reload
+	#
+}
+#
 function UniventionDefaultBranchGitHub() { # UniventionDefaultBranchGitHub: void
 	local url="https://api.github.com/repos/univention/univention-corporate-server/tags"
 
