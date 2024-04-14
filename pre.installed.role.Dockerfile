@@ -99,11 +99,23 @@ RUN \
   -maxdepth 1 -type f -delete || /bin/true
 #  cleanup generated sources.list from univention-config-registry
 RUN find /etc/apt/sources.list.d -maxdepth 1 -type f -delete
+#  cleanup generated certificates
+RUN rm --force --recursive --verbose /etc/univention/ssl
+#  cleanup generated rndc key
+RUN rm --force --verbose /etc/bind/rndc.key
 
 RUN \
-  rm --force                                                      \
-  /etc/{machine-id,localtime,hostname,shadow,locale.conf}         \
-  /var/lib/dbus/machine-id;                                       \
+  find \
+  /etc \
+  -maxdepth 1 -type f \
+  -name 'localtime'   -or \
+  -name 'hostname'    -or \
+  -name 'shadow'      -or \
+  -name 'locale.conf' -or \
+  -name 'machine-id' -delete || /bin/true
+
+RUN \
+  rm --force /var/lib/dbus/machine-id;                            \
   rm --force --recursive                                          \
   /var/lib/apt/lists/* /tmp/* /var/tmp/* /run/* /var/run/*;       \
   rm --force                                                      \
@@ -111,10 +123,6 @@ RUN \
   /var/cache/apt/archives/partial/*.deb                           \
   /var/cache/apt/*.bin                                            \
   /var/cache/debconf/*old                                         \
-  /var/log/apt/*.log.*                                            \
-  /var/log/apt/*.log                                              \
-  /var/log/*.log                                                  \
-  /var/log/{btmp,debug,faillog,lastlog,messages,syslog,wtmp}      \
   /etc/rc*.d/*                                                    \
   /etc/systemd/system/*.wants/*                                   \
   /lib/systemd/system/multi-user.target.wants/*                   \

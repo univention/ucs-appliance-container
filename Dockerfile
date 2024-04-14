@@ -72,10 +72,19 @@ RUN \
   /usr/sbin/grub-probe                                            \
   -type f -print0 | xargs -0 chmod -v +x
 
+RUN find /var/log -type f -delete
 RUN \
-  rm --force                                                      \
-  /etc/{machine-id,localtime,hostname,shadow,locale.conf}         \
-  /var/lib/dbus/machine-id;                                       \
+  find \
+  /etc \
+  -maxdepth 1 -type f \
+  -name 'localtime'   -or \
+  -name 'hostname'    -or \
+  -name 'shadow'      -or \
+  -name 'locale.conf' -or \
+  -name 'machine-id'  -delete || /bin/true
+
+RUN \
+  rm --force /var/lib/dbus/machine-id;                            \
   rm --force --recursive                                          \
   /var/lib/apt/lists/* /tmp/* /var/tmp/* /run/* /var/run/*;       \
   rm --force                                                      \
@@ -83,10 +92,6 @@ RUN \
   /var/cache/apt/archives/partial/*.deb                           \
   /var/cache/apt/*.bin                                            \
   /var/cache/debconf/*old                                         \
-  /var/log/apt/*.log.*                                            \
-  /var/log/apt/*.log                                              \
-  /var/log/*.log                                                  \
-  /var/log/{btmp,debug,faillog,lastlog,messages,syslog,wtmp}      \
   /etc/rc*.d/*                                                    \
   /etc/systemd/system/*.wants/*                                   \
   /lib/systemd/system/multi-user.target.wants/*                   \
@@ -99,7 +104,12 @@ RUN \
 # checking for slimify and/or clean up ...
 RUN \
   test -f ${SLIMIFY} && rm --force --recursive                    \
-  /usr/share/{groff,info,linda,lintian,man} /var/cache/man;       \
+  /usr/share/groff                                                \
+  /usr/share/info                                                 \
+  /usr/share/linda                                                \
+  /usr/share/lintian                                              \
+  /usr/share/man                                                  \
+  /var/cache/man;                                                 \
   test -f ${SLIMIFY} &&                                           \
   find /usr/share/doc -depth -type f ! -name copyright -delete;   \
   test -f ${SLIMIFY} &&                                           \
