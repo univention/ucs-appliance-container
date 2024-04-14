@@ -223,6 +223,12 @@ STEP 2. finally mount the volume read only
 
 ##### volumes for primary and/or backup directory node
 
+###### volume for univention-appcenter ```( /usr/bin/univention-app )```
+
+```bash
+--volume ${CONTAINER-VOLUME-UNIVENTION-APPS}:/var/lib/univention-appcenter:rw
+```
+
 ###### volume for univention-backup ```( /usr/sbin/univention-ldap-backup )```
 
 ```bash

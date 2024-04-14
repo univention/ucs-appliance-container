@@ -214,6 +214,7 @@ HEALTHCHECK --interval=5m --timeout=3s --retries=15 --start-period=25m \
 
 VOLUME /home /sys/fs/cgroup /lib/modules /run /run/lock /tmp \
   /var/lib/docker /var/lib/containerd \
+  /var/lib/univention-appcenter \
   /var/univention-join \
   /var/backups
 
