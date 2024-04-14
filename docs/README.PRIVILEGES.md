@@ -133,6 +133,11 @@ podman run \
     univention-corporate-server
 ```
 
+#### univention container based apps from [catalog](https://www.univention.com/products/app-catalog/) like [keycloak](https://www.univention.com/products/app-catalog/keycloak/)
+Since UCS 5.2 the default identity provider is an container based app called [keycloak](https://www.univention.com/products/app-catalog/keycloak/). This app will shiped automaticly by UCS, but not for the UCS appliance container. In fact the identity provider is disabled by default for UCS >= 5.1-0 ( ``` umc/web/sso/enabled=false ``` ).
+
+With (option -- C) you has full privileges to use [Docker in Docker](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) and install the [keycloak](https://www.univention.com/products/app-catalog/keycloak/) app ( ``` docker run ... --privileged ... --env install='{"add-app":["keycloak"]}' ... ``` ).
+
 [^1]: Update for Docker >= 25.0.0: It is recommended to mount the control groups with read/write permission ( ``` docker run ... --volume /sys/fs/cgroup:/sys/fs/cgroup:rw ... ``` ).
 
 [^2]: Update for Podman >= 3.1.0 and/or a fresh installed fedora >= 37 (container runs from root user), maybe you don't need to fix your system for CgroupsV1. [Run Podman with systemd support ... podman run ... --systemd true](https://docs.podman.io/en/latest/markdown/podman-run.1.html#systemd-true-false-always).
