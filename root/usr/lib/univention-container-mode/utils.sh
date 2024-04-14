@@ -395,29 +395,57 @@ function UniventionAddApp() { # UniventionAddApp: IN(${@})
 				printf "%s" "appcenter.software-univention.de"
 		)
 
-		timeout 120 UniventionDistUpdate >/dev/null 2>&1
+		timeout 120 UniventionDistUpdate >/dev/null 2>&1 || /bin/true
 		timeout 120 univention-app update 2>/dev/null || {
 			[[ ${?} -eq 124 ]] && univention-app update
 		}
 
-		if ifSystemd; then
-			# install app inside default systemd environment
+		if ifSystemd; then # install app inside default systemd environment
+			# get dcaccount or set Administrator as default
+			local dcaccount=${dcuser:-Administrator}
+
+			# set dcpwd as fallback ( Message:  Invalid credentials ... )
+			local dcpwd=/dev/shm/univention-container-mode.dcpwd.credentials
+
+			printf "%s" "${dcpass:-${rootpw:-$(</dev/shm/univention-container-mode.secrets)}}" > \
+				${dcpwd}
+
 			if command -v univention-app 2>/dev/null; then
 				if [[ "$(ucr get server/role)" == "domaincontroller_master" ]]; then
 					timeout ${timeout} univention-app install --noninteractive \
 						${@}
 				else
 					timeout ${timeout} univention-app install --noninteractive \
-						--username ${dcuser:-Administrator} \
-						--pwdfile <(printf "%s" "${dcpass}") \
+						--username ${dcaccount} --pwdfile ${dcpwd} \
+						${@}
+				fi
+
+				if [[ ${?} -ne 0 ]]; then
+					timeout ${timeout} univention-app install --noninteractive --skip-checks \
+						--username ${dcaccount} --pwdfile ${dcpwd} \
 						${@}
 				fi
 			else
 				command -v univention-add-app || return 1
 				timeout ${timeout} univention-add-app --all ${@}
 			fi
-		else
-			# install app form docker or podman build ( validated by app type and server role )
+
+			if [[ $(ucr get appcenter/docker) =~ ^enabled$ ]]; then
+				case ${@} in
+				*keycloak*) { # fix the disabled sso web service for keycloak app
+					[[ $(ucr get appcenter/apps/keycloak/status) =~ ^installed$ ]] && {
+						univention-config-registry set "umc/web/sso/enabled=true"
+						sed -i '/^univention-management-console-web-server/d' \
+							/var/univention-join/status &&
+								UniventionCheckJoinStatus
+					}
+				} ;;
+				esac
+			fi
+
+			# cleanup
+			rm --force ${dcpwd}
+		else # install app form docker or podman build ( validated by app type and server role )
 			[[ -d ${appCenter} ]] && for appAdd in ${@}; do
 				#
 				# find app ini file

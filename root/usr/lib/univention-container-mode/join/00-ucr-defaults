@@ -167,6 +167,10 @@ ucrchanges+=("windows/domain=$(
 # set machine password length
 # ucrchanges+=("machine/password/length=$(((${ucrcounter[times]} + 0) * 16))")
 #
+# disable sso web service for UCS >= 5.1-0, the sso service is now an univention container app
+dpkg --compare-versions $(ucr get version/version).$(ucr get version/patchlevel) ge 5.1.0 && \
+	ucrchanges+=("umc/web/sso/enabled=false")
+#
 # mawk vs gawk, fix regular expressions
 command -v ${awk} && {
 	apt-get --assume-yes remove ${awk}

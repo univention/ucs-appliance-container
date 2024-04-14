@@ -213,8 +213,9 @@ command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && com
 			${RSYNC} /etc/samba ${restore}/samba/etc
 		}
 		[[ -d ${restore}/saml ]] && {
-			# save SAML /etc config directory
-			${RSYNC} /etc/simplesamlphp ${restore}/saml/etc
+			# save SAML /etc config directory if exist
+			[[ -d /etc/simplesamlphp ]] && ${RSYNC} /etc/simplesamlphp ${restore}/saml/etc || \
+				rm --force --recursive ${restore}/saml
 		}
 		[[ -d ${restore}/ssh ]] && {
 			# save all ssh keys ( private and public )
