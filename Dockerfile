@@ -172,7 +172,8 @@ RUN systemctl mask --                                             \
 # we don't need this service unit(s) in the container
 #  see root/usr/lib/systemd/system/systemd-*.service.d/*.conf
 RUN systemctl mask --                                             \
-  systemd-networkd-wait-online.service
+  systemd-networkd-wait-online.service                            \
+          ifupdown-wait-online.service
 # systemd-timedated.service ( ConditionVirtualization=!container )
 # systemd-resolved          ( ConditionVirtualization=!container )
 # systemd-logind            ( ConditionVirtualization=!container )
