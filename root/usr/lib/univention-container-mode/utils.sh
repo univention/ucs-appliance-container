@@ -171,7 +171,7 @@ UniventionFixServiceUnitNamespace() { # UniventionFixServiceUnitNamespace: void
 	#  => Attaching egress BPF ... failed
 	local filter='' units=(${@} $(
 		journalctl --full --all --no-pager --no-hostname --since "${since}" | awk '/^.*systemd\[1\]\:.*(NAMESPACE|BPF.*cgroup.*failed.*)$/{ gsub(/\:/,"",$0); print $0 }' |
-			sed -E 's/^.*\s(systemd\-[a-z]+|[a-z-]+)\.service.*$/\1/g' | sort -u
+			sed -E 's/^.*\s(systemd\-[a-z]+|[a-z-]+)\.service.*$/\1/g' | sed -E '/^.*\[[0-9]+\].*$/d' | sort -u
 	))
 	local forced="^(Private|Protect|Restrict|NoNewPrivileges|ReadWrite|MemoryDeny|SystemCall|IPAddressDeny|LockPersonality)"
 	local nicely="^(Private|Protect|Restrict)"
