@@ -145,7 +145,7 @@ NS=$(
 			'
 )
 #
-sso=ucs-sso
+sso=$(ucr get ucs/server/sso/fqdn)
 #
 for version in ${network[@]}; do
 	# get default interface from ip -(4|6) route list
@@ -195,11 +195,11 @@ for version in ${network[@]}; do
 				${network[reverse]} ${network[pointer]}
 		}
 		#
-		[[ "${server_role}" == "domaincontroller_master" ]] && {
-			dig @${NS} ${sso}.${domainname} ${IN} 2>&1 |
-				egrep --quiet -- "^${sso}.${domainname}.*IN.*${IN}.*${network[address]}$" || {
+		[[ "${server_role}" == "domaincontroller_master" ]] && [[ $(ucr get umc/web/sso/enabled) =~ true|yes ]] && [[ ${sso} =~ ${domainname} ]] && {
+			dig @${NS} ${sso} ${IN} 2>&1 |
+				egrep --quiet -- "^${sso}.*IN.*${IN}.*${network[address]}$" || {
 				UniventionDirecroryManagerUpdate \
-					${sso} ${domainname} \
+					${sso/.${domainname}/} ${domainname} \
 					${ldap_master} ${ldap_base} \
 					${network[address]} ${network[cidr]} \
 					${network[reverse]} ${network[pointer]}
@@ -208,9 +208,9 @@ for version in ${network[@]}; do
 			dig @${NS} -x ${network[address]} 2>&1 |
 				egrep --quiet -- "^$(
 					host ${network[address]} ${NS} | grep -- pointer | head -1 | awk '{ printf $1 }'
-				).*IN.*PTR.*${sso}.${domainname}.$" || {
+				).*IN.*PTR.*${sso}.$" || {
 				UniventionDirecroryManagerUpdate \
-					${sso} ${domainname} \
+					${sso/.${domainname}/} ${domainname} \
 					${ldap_master} ${ldap_base} \
 					${network[address]} ${network[cidr]} \
 					${network[reverse]} ${network[pointer]}

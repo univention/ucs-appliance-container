@@ -124,7 +124,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 #     "rsa": {"key": {"private": "single line <string(base64)>","public": "single line <string(base64)>"}}
 #   },
 #   "sso": {
-#     "fqdn": "ucs-sso.${domainname}",
+#     "fqdn": "ucs-sso.${domainname}" || "ucs-sso-ng.${domainname}",
 #     "certificate": {"req": "single line <string(base64)>","crt": "single line <string(base64)>"},
 #     "rsa": {"key": {"private": "single line <string(base64)>","public": "single line <string(base64)>"}}
 #   }
@@ -462,7 +462,7 @@ command -v ${CertificateCommand} >/dev/null 2>&1 || UniventionInstallNoRecommend
 				emailAddress=$(ucr get ssl/email)
 
 				# set openssl serial(s) and fix the index
-				for i in {0..2}; do
+				for i in {0..3}; do
 					[[ ${i} =~ ^0$ ]] && { # root certificate
 						CN=$(ucr get ssl/common | sed 's/\s(.*//g')
 						CPATH=${CertificateBaseDir}/ucsCA/CAcert.pem
@@ -475,6 +475,11 @@ command -v ${CertificateCommand} >/dev/null 2>&1 || UniventionInstallNoRecommend
 
 					[[ ${i} =~ ^2$ ]] && { # sso certificate
 						CN=ucs-sso.${domainname}
+						CPATH=${CertificateBaseDir}/${CN}/cert.pem
+					}
+
+					[[ ${i} =~ ^3$ ]] && { # sso certificate ( next generation )
+						CN=ucs-sso-ng.${domainname}
 						CPATH=${CertificateBaseDir}/${CN}/cert.pem
 					}
 
