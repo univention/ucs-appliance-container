@@ -146,7 +146,7 @@ NETWORK=ucs; FQDN=dc.${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=
     --security-opt apparmor=univention-corporate-server \
     --cap-add SYS_ADMIN \
     --cap-add CAP_MKNOD \
-    --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
+    --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
     --cap-add SYS_MODULE \
     --volume /lib/modules:/lib/modules:ro \
     --cap-add SYS_TIME \
@@ -173,7 +173,7 @@ NETWORK=ucs; FQDN=dc.${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=
   docker run \
     --detach \
     --privileged \
-    --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
+    --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
     --volume /lib/modules:/lib/modules:ro \
     --tmpfs /run \
     --tmpfs /run/lock \

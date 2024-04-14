@@ -36,6 +36,7 @@ test $(docker info --format '{{.CgroupDriver}}' ) = systemd || echo "CGroupsDriv
 And finaly, depend your Docker or Podman version, the option ( ```--cap-add CAP_MKNOD``` ) may not be supported or be called something else ( ```--cap-add MKNOD``` ). Test the deployment with both styles or without the option.
 
 ### (option -- A) container with minimal privileg excluding [Docker in Docker](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) and excluding all types of packages that need higher system privileges.
+Docker >= 25.0.0[^1], mount the control groups read/write.
 ```bash
 docker run \
   --detach \
@@ -55,7 +56,7 @@ podman run \
     univention-corporate-server
 ```
 
-Podman >= 3.1.0[^1].
+Podman >= 3.1.0[^2].
 ```bash
 podman run \
   --detach \
@@ -68,6 +69,7 @@ podman run \
 This will likely generate a lot of warnings and errors in systemd journal ```( journalctl -xe )```.
 
 ### (option -- B) container privileg excluding [Docker in Docker](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) but with most univention packages such as common internet file system ( CIFS ).
+Docker >= 25.0.0[^1], mount the control groups read/write.
 ```bash
 docker run \
   --detach \
@@ -93,7 +95,7 @@ podman run \
     univention-corporate-server
 ```
 
-Podman >= 3.1.0[^1].
+Podman >= 3.1.0[^2].
 ```bash
 podman run \
   --detach \
@@ -111,6 +113,7 @@ Read more about [SYS_ADMIN, CAP_MKNOD and SYS_MODULE](https://systemd.io/CONTAIN
 Also these container security options for [apparmor](https://docs.docker.com/engine/security/apparmor/) or [seccomp](https://docs.docker.com/engine/security/seccomp/) are good to know, use ```( --security-opt apparmor=unconfined ) OR ( --security-opt seccomp=unconfined )``` to disable apparmor or seccomp. Give it a try if you are in trouble with NFS. But make sure to later config apparmor/seccomp too.
 
 ### (option -- C) container has full privileges including [Docker in Docker](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) and all univention packages such as univention app center.
+Docker >= 25.0.0[^1], mount the control groups read/write.
 ```bash
 docker run \
   --detach \
@@ -120,7 +123,7 @@ docker run \
     univention-corporate-server
 ```
 
-Podman >= 3.1.0[^1].
+Podman >= 3.1.0[^2].
 ```bash
 podman run \
   --detach \
@@ -130,4 +133,6 @@ podman run \
     univention-corporate-server
 ```
 
-[^1]: Update for Podman >= 3.1.0 and/or a fresh installed fedora >= 37 (container runs from root user), maybe you don't need to fix your system for CgroupsV1. [Run Podman with systemd support ... podman run ... --systemd true](https://docs.podman.io/en/latest/markdown/podman-run.1.html#systemd-true-false-always).
+[^1]: Update for Docker >= 25.0.0: It is recommended to mount the control groups with read/write permission ( ``` docker run ... --volume /sys/fs/cgroup:/sys/fs/cgroup:rw ... ``` ).
+
+[^2]: Update for Podman >= 3.1.0 and/or a fresh installed fedora >= 37 (container runs from root user), maybe you don't need to fix your system for CgroupsV1. [Run Podman with systemd support ... podman run ... --systemd true](https://docs.podman.io/en/latest/markdown/podman-run.1.html#systemd-true-false-always).

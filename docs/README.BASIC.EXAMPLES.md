@@ -28,7 +28,7 @@ FQDN=dc.ucs.example; \
     --detach \
     --cap-add SYS_ADMIN \
     --cap-add CAP_MKNOD \
-    --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
+    --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
     --tmpfs /run \
     --tmpfs /run/lock \
     --tmpfs /tmp:exec \
@@ -87,7 +87,7 @@ MASTER=dc.ucs.example; FQDN=s${MASTER}; \
     --detach \
     --cap-add SYS_ADMIN \
     --cap-add CAP_MKNOD \
-    --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
+    --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
     --tmpfs /run \
     --tmpfs /run/lock \
     --tmpfs /tmp:exec \
@@ -149,7 +149,7 @@ MASTER=dc.ucs.example; FQDN=b${MASTER}; \
     --detach \
     --cap-add SYS_ADMIN \
     --cap-add CAP_MKNOD \
-    --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
+    --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
     --tmpfs /run \
     --tmpfs /run/lock \
     --tmpfs /tmp:exec \
@@ -211,7 +211,7 @@ MASTER=dc.ucs.example; FQDN=m${MASTER}; \
     --detach \
     --cap-add SYS_ADMIN \
     --cap-add CAP_MKNOD \
-    --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
+    --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
     --tmpfs /run \
     --tmpfs /run/lock \
     --tmpfs /tmp:exec \
