@@ -64,8 +64,10 @@ command -v ${rsync} >/dev/null 2>&1 || UniventionInstallNoRecommends ${rsync}
 #
 # restore only if we have a vaild backup ( join/99-system-restore-initialize )
 [[ -f ${restore}/restore ]] && [[ -d ${restore}/cups ]] && command -v ${rsync} && {
-	${rsync} --archive --verbose ${restore}/cups/ppd /etc/cups/ &&
-		systemctl restart -- cups.service
+	if [[ -d ${restore}/cups/ppd ]]; then
+		${rsync} --archive --verbose ${restore}/cups/ppd /etc/cups/ &&
+			systemctl restart -- cups.service
+	fi
 }
 #
 ## cups restore from backup for container mode environment
