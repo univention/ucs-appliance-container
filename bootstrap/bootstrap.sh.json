@@ -83,6 +83,99 @@
 								]
 							}
 						},
+						"ucs507": {
+							"name": "ucs507",
+							"arch": [
+								"amd64"
+							],
+							"tag": "test",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 5.x <container@univention.de>",
+									"hash": "8321745BB32A82C75BBD4BC2D293E501A055F562",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates-test.software-univention.de/univention-archive-key-ucs-5x.gpg",
+									"date": {
+										"created": "2020-05-08",
+										"expire": "2027-05-07"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"python3-cffi-backend"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils",
+									"apt-transport-https"
+								]
+							}
+						},
+						"ucs506": {
+							"name": "ucs506",
+							"arch": [
+								"amd64"
+							],
+							"tag": "test",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 5.x <container@univention.de>",
+									"hash": "8321745BB32A82C75BBD4BC2D293E501A055F562",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates-test.software-univention.de/univention-archive-key-ucs-5x.gpg",
+									"date": {
+										"created": "2020-05-08",
+										"expire": "2027-05-07"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"python3-cffi-backend"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils",
+									"apt-transport-https"
+								]
+							}
+						},
+						"ucs505": {
+							"name": "ucs505",
+							"arch": [
+								"amd64"
+							],
+							"tag": "test",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 5.x <container@univention.de>",
+									"hash": "8321745BB32A82C75BBD4BC2D293E501A055F562",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates-test.software-univention.de/univention-archive-key-ucs-5x.gpg",
+									"date": {
+										"created": "2020-05-08",
+										"expire": "2027-05-07"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"python3-cffi-backend"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils",
+									"apt-transport-https"
+								]
+							}
+						},
 						"ucs504": {
 							"name": "ucs504",
 							"arch": [
@@ -257,12 +350,136 @@
 					},
 					"mirror": "https://updates.software-univention.de",
 					"codenames": {
+						"ucs507": {
+							"name": "ucs507",
+							"arch": [
+								"amd64"
+							],
+							"tag": "latest",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 5.x <container@univention.de>",
+									"hash": "8321745BB32A82C75BBD4BC2D293E501A055F562",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-5x.gpg",
+									"date": {
+										"created": "2020-05-08",
+										"expire": "2027-05-07"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"python3-cffi-backend"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils",
+									"apt-transport-https"
+								]
+							}
+						},
+						"ucs506": {
+							"name": "ucs506",
+							"arch": [
+								"amd64"
+							],
+							"tag": "ucs506",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 5.x <container@univention.de>",
+									"hash": "8321745BB32A82C75BBD4BC2D293E501A055F562",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-5x.gpg",
+									"date": {
+										"created": "2020-05-08",
+										"expire": "2027-05-07"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"python3-cffi-backend"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils",
+									"apt-transport-https"
+								]
+							}
+						},
+						"ucs505": {
+							"name": "ucs505",
+							"arch": [
+								"amd64"
+							],
+							"tag": "ucs505",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 5.x <container@univention.de>",
+									"hash": "8321745BB32A82C75BBD4BC2D293E501A055F562",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-5x.gpg",
+									"date": {
+										"created": "2020-05-08",
+										"expire": "2027-05-07"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"python3-cffi-backend"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils",
+									"apt-transport-https"
+								]
+							}
+						},
+						"ucs504": {
+							"name": "ucs504",
+							"arch": [
+								"amd64"
+							],
+							"tag": "ucs504",
+							"gpg": {
+								"key": {
+									"name": "Univention Corporate Server 5.x <container@univention.de>",
+									"hash": "8321745BB32A82C75BBD4BC2D293E501A055F562",
+									"file": "/usr/share/keyrings/univention-archive-key-ucs-5x.gpg",
+									"http": "https://updates.software-univention.de/univention-archive-key-ucs-5x.gpg",
+									"date": {
+										"created": "2020-05-08",
+										"expire": "2027-05-07"
+									}
+								}
+							},
+							"packages": {
+								"variant": "minbase",
+								"include": [
+									"python3-cffi-backend"
+								],
+								"exclude": [],
+								"default": [
+									"apt-utils",
+									"debconf-utils",
+									"apt-transport-https"
+								]
+							}
+						},
 						"ucs503": {
 							"name": "ucs503",
 							"arch": [
 								"amd64"
 							],
-							"tag": "latest",
+							"tag": "ucs503",
 							"gpg": {
 								"key": {
 									"name": "Univention Corporate Server 5.x <container@univention.de>",
