@@ -68,7 +68,8 @@ done
 UniventionDistUpdate
 #
 # update packages
-UniventionDistUpgrade
+[[ ${LATEST:-TRUE} =~ ^SKIPP$ ]] ||
+	UniventionDistUpgrade
 #
 # commit nameserver changes
 UniventionConfigRegistrySet ${ucrchanges[@]} || /bin/true

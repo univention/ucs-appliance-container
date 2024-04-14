@@ -70,7 +70,8 @@ mountpoint --quiet /var/cache/apt/archives >/dev/null 2>&1 || {
 UniventionDistUpdate
 #
 # run system dist-upgrade
-UniventionDistUpgrade
+[[ ${LATEST:-TRUE} =~ ^SKIPP$ ]] ||
+	UniventionDistUpgrade
 #
 # check repository online sources after dist-upgrade
 egrep --quiet --recursive -- "Traceback|repository.online.true" /etc/apt/sources.* && {
