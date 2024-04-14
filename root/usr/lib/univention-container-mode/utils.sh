@@ -84,11 +84,11 @@ function UniventionServiceUnits() { # UniventionServiceUnits: void
 }
 #
 function UniventionDefaultServices() { # UniventionDefaultServices: void
-	printf "atd bind9 cron heimdal-kdc memcached nagios-nrpe-server named nscd nslcd ntp ntpsec postfix rsync rsyslog slapd ssh stunnel4"
+	printf "atd bind9 cron heimdal-kdc inetd memcached nagios-nrpe-server named nscd nslcd ntp ntpsec postfix rsync rsyslog slapd ssh sssd stunnel4"
 }
 #
 function UniventionDefaultTimers() { # UniventionDefaultTimers: void
-	printf "apt-daily apt-daily-upgrade logrotate phpsessionclean"
+	printf "apt-daily apt-daily-upgrade logrotate ntpsec-rotate-stats phpsessionclean"
 }
 #
 function UniventionPreInstalledRoleCheck() { # UniventionPreInstalledRoleCheck: void
