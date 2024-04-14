@@ -19,6 +19,7 @@ path-exclude /usr/share/omf/*/*-*.emf
 
 path-include /usr/share/doc/*/copyright
 path-include /usr/share/doc/*/changelog.Debian.gz
+path-include /usr/share/doc/univention*/changelog.gz
 path-include /usr/share/locale/*/*/univention*.mo
 path-include /usr/share/locale/all_languages
 path-include /usr/share/locale/currency/*
