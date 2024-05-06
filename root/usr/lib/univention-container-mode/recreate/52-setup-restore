@@ -333,14 +333,56 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 	# (re)start service unit(s)
 	for service in ${services[@]}; do
 		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
-			systemctl start -- ${service}.service || systemctl restart -- ${service}.service
+			systemctl start -- ${service}.service || systemctl restart -- ${service}.service || continue
 			systemctl status --no-pager --no-legend -- ${service}.service || continue
+		}
+	done
+	#
+	# try to remove keycloak entries ( cleanup ldap to recreate without sso service )
+	if [[ -f ${restore}/apps/keycloak.uinst ]]; then
+		chmod +x ${restore}/apps/keycloak.uinst &&
+			${restore}/apps/keycloak.uinst || /bin/true
+		find /etc -mindepth 1 -maxdepth 1 -type f \
+			-name *keycloak.secret -delete
+		univention-config-registry set umc/web/sso/enabled=false
+	fi
+	#
+	# reset any sso ptr record for now, maybe it is not possible to run sso container
+	for dn in $(udm dns/ptr_record list | awk '/^(dn|DN)/{ print $2 }'); do
+		for ptr in $(
+			awk '/^(ucs|keycloak)\/server\/sso\/fqdn/{ print $2 }' \
+				${restore}/registry/base*conf /etc/univention/base*conf | \
+					sort -u
+		); do
+			udm dns/ptr_record modify --dn ${dn} --remove ptr_record=${ptr}. || continue
+		done
+	done
+	#
+	# reset sso host record ( univention-run-join-scripts --force will fix this )
+	for dn in $(udm dns/host_record list --filter name=*ucs*sso* | awk '/^(dn|DN)/{ print $2 }'); do
+		udm dns/host_record modify --dn ${dn} --remove a || continue
+	done
+	#
+	# set a vaild ip address for this primary directory node ( IPv4 has a higher priority )
+	for ip in $(ucr get "interfaces/$(ucr get interfaces/primary)/ipv6/default/address") $(ucr get "interfaces/$(ucr get interfaces/primary)/address"); do
+		[[ ${ip} =~ ^.*$ ]] && {
+			udm computers/domaincontroller_master modify \
+				--dn ${ldap_hostdn} \
+				--set ip=${ip} || continue
 		}
 	done
 	#
 	univention-run-join-scripts --force && {
 		univention-config-registry commit
 	}
+	#
+	# (re)start service unit(s)
+	for service in ${services[@]}; do
+		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
+			systemctl start -- ${service}.service || systemctl restart -- ${service}.service || continue
+			systemctl status --no-pager --no-legend -- ${service}.service || continue
+		}
+	done
 	#
 }
 #

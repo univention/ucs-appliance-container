@@ -38,7 +38,7 @@ source /usr/lib/univention-container-mode/utils.sh || exit 1
 # }
 
 ## ucr shell
-# eval "$(ucr shell hostname domainname)"
+eval "$(ucr shell machine/password/complexity machine/password/length)"
 
 ## declare
 declare -a ucrchanges
@@ -63,7 +63,44 @@ restore=/var/backups/univention-container-mode
 	for app in $(
 		awk '/^appcenter\/apps\/.*\/status.*installed$/{ split($1,APP,"/"); print APP[3] }' ${restore}/registry/base*conf 2>/dev/null
 	); do
-		UniventionAddApp ${app} 2>/dev/null || continue
+		[[ $(ucr get appcenter/apps/${app}/status) =~ ^installed$ ]] || {
+			dcuser="${app}-restore-install"
+			dcpass="${rootpw:-$(</dev/shm/univention-container-mode.secrets)}"
+			dcpwd="/dev/shm/univention-container-mode.${app}.dcpwd.credentials"
+
+			[[ -z ${dcpass:-} ]] && dcpass=$(
+				pwgen -1 -${machine_password_complexity:-scn} ${machine_password_length:-64} | tr --delete '\n'
+			)
+
+			[[ $(univention-ldapsearch -LLL uid=${dcuser} dn 2>/dev/null) =~ ${dcuser} ]] &&
+				udm users/user remove --dn "uid=${dcuser},$(ucr get ldap/base)"
+
+			# crate temporary install account
+			udm users/user create \
+				--set username="${dcuser}" \
+				--set lastname="${dcuser}" \
+				--set password="${dcpass}" \
+				--set objectFlag=hidden
+
+			printf "%s" "${dcpass}" > \
+				${dcpwd}
+
+			# get old installed app version
+			version=$(
+				egrep -- "^appcenter/apps/${app}/version" ${restore}/registry/base*conf | head -1 | awk '{ printf $2 }'
+			)
+
+			# try to cleanup
+			univention-app remove --noninteractive --skip-checks --username ${dcuser} --pwdfile ${dcpwd} --do-not-backup ${app}=${version} || /bin/true
+
+			UniventionAddApp --skip-checks --username ${dcuser} --pwdfile ${dcpwd} ${app}=${version} || /bin/true
+
+			rm --force --verbose \
+				${dcpwd}
+
+			# remove temporary install account
+			udm users/user remove --dn "uid=${dcuser},$(ucr get ldap/base)"
+		}
 	done
 }
 #
@@ -81,6 +118,8 @@ UniventionConfigCommit ${ucrcommit[@]}
 
 ## cleanup
 unset \
+	machine_password_length \
+	machine_password_complexity \
 	ucrchanges ucrremoves ucrcounter ucrcommit
 
 debug "### CLEAN SCRIPT($(pwd)/$0) ###"

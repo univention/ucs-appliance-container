@@ -145,7 +145,13 @@ NS=$(
 			'
 )
 #
-sso=$(ucr get ucs/server/sso/fqdn)
+sso=$(
+	ucr get ucs/server/sso/fqdn
+)
+#
+sso=${sso:-$(
+	ucr get keycloak/server/sso/fqdn
+)}
 #
 for version in ${network[@]}; do
 	# get default interface from ip -(4|6) route list

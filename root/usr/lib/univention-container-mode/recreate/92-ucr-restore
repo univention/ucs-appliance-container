@@ -57,7 +57,7 @@ debug "### START SCRIPT($(pwd)/$0) ###"
 #
 restore=/var/backups/univention-container-mode
 #
-UniventionConfigRegistryExcludeKeyFilter="^(appcenter/docker|umc/web/cache_bust|dns/forwarder|nameserver|gateway|interfaces|security/packetfilter|ssl/default|system/setup|uuid/system|updater/statistics|update/available|version)"
+UniventionConfigRegistryExcludeKeyFilter="^(appcenter|keycloak|kc/|umc/web/sso/enabled|umc/saml/idp-server|umc/web/cache_bust|dns/forwarder|nameserver|gateway|interfaces|security/packetfilter|ssl/default|system/setup|uuid/system|updater/statistics|update/available|version)"
 #
 diff=diff
 
