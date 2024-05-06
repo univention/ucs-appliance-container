@@ -97,6 +97,8 @@ command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && com
 		### START(Exit immediately if a command exits with a non-zero status)
 		set -e
 		#
+		rm --recursive --force ${restore}/*
+		#
 		if [[ ${server_role} =~ ^(domaincontroller_master|domaincontroller_backup)$ ]]; then
 			mkdir --parents ${restore}/{bind,certificates,connectors,cups,ldap,packages,registry,samba,saml,ssh,secrets}
 		else
