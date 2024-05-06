@@ -74,13 +74,13 @@ RUN \
 
 RUN find /var/log -type f -delete
 RUN \
-  find \
-  /etc \
-  -maxdepth 1 -type f \
-  -name 'localtime'   -or \
-  -name 'hostname'    -or \
-  -name 'shadow'      -or \
-  -name 'locale.conf' -or \
+  find                                                            \
+  /etc                                                            \
+  -maxdepth 1 -type f                                             \
+  -name 'localtime'   -or                                         \
+  -name 'hostname'    -or                                         \
+  -name 'shadow'      -or                                         \
+  -name 'locale.conf' -or                                         \
   -name 'machine-id'  -delete || /bin/true
 
 RUN \

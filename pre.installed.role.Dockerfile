@@ -86,8 +86,8 @@ RUN find /etc/ssh -type f -name '*key' -delete
 RUN find /var/log -type f -delete
 #  remove debian generated config file
 RUN \
-  find \
-  /etc/ldap/slapd.d \
+  find                                                            \
+  /etc/ldap/slapd.d                                               \
   -maxdepth 1 -type f -name 'cn=config.ldif' -delete || /bin/true
 #  cleanup default and univention ldap directories
 RUN \
@@ -103,15 +103,20 @@ RUN find /etc/apt/sources.list.d -maxdepth 1 -type f -delete
 RUN rm --force --recursive --verbose /etc/univention/ssl
 #  cleanup generated rndc key
 RUN rm --force --verbose /etc/bind/rndc.key
+#  cleanup generated cache
+RUN \
+  find                                                            \
+  /var/cache/univention-container-mode                            \
+  -maxdepth 1 -type f -name 'depends.*.md5' -delete || /bin/true
 
 RUN \
-  find \
-  /etc \
-  -maxdepth 1 -type f \
-  -name 'localtime'   -or \
-  -name 'hostname'    -or \
-  -name 'shadow'      -or \
-  -name 'locale.conf' -or \
+  find                                                            \
+  /etc                                                            \
+  -maxdepth 1 -type f                                             \
+  -name 'localtime'   -or                                         \
+  -name 'hostname'    -or                                         \
+  -name 'shadow'      -or                                         \
+  -name 'locale.conf' -or                                         \
   -name 'machine-id' -delete || /bin/true
 
 RUN \
