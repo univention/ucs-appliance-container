@@ -64,6 +64,13 @@ command -v ${rsync} >/dev/null 2>&1 || UniventionInstallNoRecommends ${rsync}
 #
 # restore only if we have a vaild backup ( join/99-system-restore-initialize )
 [[ -f ${restore}/restore ]] && [[ -d ${restore}/ssh ]] && command -v ${rsync} && {
+	# cleanup known host public key cache
+	for key in $(awk '{ print $2 }' /etc/ssh/ssh_*_key.pub); do
+		for hosts in $(find /{etc,root} -type f -name *known_hosts); do
+			sed -i "/${key//\//\\/}/d" ${hosts} || continue
+		done
+	done
+	# restore ssh private and public keys
 	${rsync} --archive --verbose ${restore}/ssh/* /etc/ssh/ &&
 		systemctl restart -- ssh.service
 }
