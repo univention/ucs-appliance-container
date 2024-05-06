@@ -121,7 +121,7 @@ dig ${UniventionSystemRepositoryHostname} +short | egrep --quiet -- "^[a-f0-9]" 
 }
 #
 # restart service unit(s)
-for service in apache2 bind9; do
+for service in apache2 bind9 univention-bind-ldap; do
 	systemctl restart -- ${service}.service >/dev/null 2>&1 || /bin/true
 done
 #

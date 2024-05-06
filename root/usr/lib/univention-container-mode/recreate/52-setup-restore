@@ -116,7 +116,7 @@ LdapBackup=${restore}/secrets/ldap-backup.secret
 #
 InstallIndex=/usr/lib/univention-install/.index.txt
 #
-services=(cron nslcd slapd univention-directory-notifier univention-directory-listener samba)
+services=(cron nslcd slapd univention-bind-ldap univention-directory-notifier univention-directory-listener samba)
 #
 openldap=openldap
 #
