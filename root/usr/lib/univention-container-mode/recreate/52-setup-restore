@@ -105,21 +105,14 @@ restore=/var/backups/univention-container-mode
 #
 MachineSecret=${restore}/secrets/machine.secret
 #
-LdapPath=/etc/ldap/slapd.d
-LdapConfig=/etc/ldap/slapd.conf
-LdapDatabase=/var/lib/univention-ldap/ldap
-LdapTranslog=/var/lib/univention-ldap/translog
+UniventionLdapConfigPath=/etc/ldap/slapd.d
+UniventionLdapConfigFile=/etc/ldap/slapd.conf
+UniventionLdapDirectory=/var/lib/univention-ldap
 #
 SambaPath=/var/lib/samba
 #
 LdapSecret=${restore}/secrets/ldap.secret
 LdapBackup=${restore}/secrets/ldap-backup.secret
-LdapSearch=${restore}/ldap/ldapsearch.ldif
-LdapSchema=${restore}/ldap/schema/local-schema
-#
-LdifConfig=${restore}/ldap/slapcat.config.ldif
-LdifDatabase=${restore}/ldap/slapcat.database.ldif
-LdifTranslog=${restore}/ldap/slapcat.translog.ldif
 #
 InstallIndex=/usr/lib/univention-install/.index.txt
 #
@@ -168,36 +161,54 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 		}
 	done
 	#
-	# remove the old LDAP and set permissions
-	for dir in ${LdapDatabase} ${LdapTranslog} ${LdapPath}; do
-		rm --force --recursive ${dir} && mkdir --parents --verbose ${dir}
-		chown ${openldap}:${openldap} --recursive --verbose ${dir}
+	# get static and/or dynamic LDAP databases
+	databases=$(
+		[[ -d ${UniventionLdapConfigPath} ]] && awk '/^olcSuffix/{ print $2 }' <(slapcat -a "olcSuffix=*" -b "cn=config" -F ${UniventionLdapConfigPath} 2>/dev/null) ;
+		[[ -f ${UniventionLdapConfigFile} ]] && awk    '/^suffix/{ print $2 }' ${UniventionLdapConfigFile} 2>/dev/null | sed -e 's/"//g' -e "s/'//g"
+	)
+	#
+	# remove dynamic config directory ( config setup ldif expected directory /etc/ldap/slapd.d to be empty! ) and listener cache
+	rm --recursive --force --verbose ${UniventionLdapConfigPath}/* /var/lib/univention-directory-listener/*
+	#
+	# restore databases from LDIF ( remove the old LDAP, set the right permission and/or fallback to old LDIF database )
+	for database in "cn=config" ${databases}; do
+		ldif=$([[ ${database} =~ ${ldap_base} ]] && printf "%s" "ldap" || printf "%s" "${database/cn=/}")
+		file=${restore}/ldap/slapcat.${ldif}.ldif
+		ldap=${UniventionLdapDirectory}/${ldif}
+
+		if [[ ${database} =~ ${ldap_base} ]] && [[ ! -f ${file} ]]; then
+			file=${restore}/ldap/slapcat.database.ldif
+		fi
+
+		[[ -f ${file} ]] && echo "TRY TO RESTORE LDAP DATABASE(${database/cn=/}) FROM LDIF(${file})" || continue
+
+		[[ ${database/cn=/} =~ ^config$ ]] || {
+			rm --recursive --force --verbose ${ldap}
+			mkdir --parents --verbose ${ldap}
+		}
+
+		if [[ -f ${restore}/ldap/slapcat.config.ldif ]]; then
+			slapadd -cv -b "${database}" -F ${UniventionLdapConfigPath} -l ${file}
+		else
+			slapadd -cv -b "${database}" -f ${UniventionLdapConfigFile} -l ${file}
+		fi
+
+		if [[ ${database/cn=/} =~ ^config$ ]]; then
+			chown ${openldap}:${openldap} --recursive --verbose ${UniventionLdapConfigPath}
+		else
+			chown ${openldap}:${openldap} --recursive --verbose ${ldap} &&
+				univention-config-registry commit ${ldap}/DB_CONFIG || /bin/true
+		fi
+
 	done
 	#
-	# remove listener cache
-	rm --recursive --force --verbose /var/lib/univention-directory-listener/*
-	#
-	# restore translog from LDIF
-	[[ -f ${LdifTranslog} ]] &&
-		slapadd -cv -n 2 -f ${LdapConfig} -F ${LdapPath} -l ${LdifTranslog} &&
-		univention-config-registry commit ${LdapTranslog}/DB_CONFIG &&
-		chown ${openldap}:${openldap} --recursive --verbose ${LdapTranslog}
-	#
-	# restore database from LDIF
-	[[ -f ${LdifDatabase} ]] &&
-		slapadd -cv -n 1 -f ${LdapConfig} -F ${LdapPath} -l ${LdifDatabase} &&
-		univention-config-registry commit ${LdapDatabase}/DB_CONFIG &&
-		chown ${openldap}:${openldap} --recursive --verbose ${LdapDatabase}
-	#
-	# restore config from LDIF ( ignore "No dynamic config support for overlay" )
-	[[ -f ${LdifConfig} ]] &&
-		slapadd -cv -n 0 -f ${LdapConfig} -F ${LdapPath} -l ${LdifConfig} ||
-		${RSYNC} $(dirname ${LdifConfig})/etc/ldap /etc/ &&
-		chown ${openldap}:${openldap} --recursive --verbose ${LdapPath}
+	# restore local config
+	[[ -d ${restore}/ldap/etc/ldap ]] &&
+		${RSYNC} --exclude slapd.d --exclude sasl* ${restore}/ldap/etc/ldap /etc/
 	#
 	# restore local schema
-	[[ -d ${LdapSchema} ]] &&
-		${RSYNC} ${LdapSchema} $(dirname ${LdapDatabase})/
+	[[ -d ${restore}/ldap/schema/local-schema ]] &&
+		${RSYNC} ${restore}/ldap/schema/local-schema ${UniventionLdapDirectory}/
 	#
 	# restore local secret(s)
 	[[ -d ${restore}/secrets ]] &&
