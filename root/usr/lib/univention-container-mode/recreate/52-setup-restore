@@ -210,15 +210,17 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 	[[ -d ${restore}/ldap/schema/local-schema ]] &&
 		${RSYNC} ${restore}/ldap/schema/local-schema ${UniventionLdapDirectory}/
 	#
-	# restore local secret(s)
+	# restore local secret(s) and try to backup the old one
 	[[ -d ${restore}/secrets ]] &&
-		find ${restore}/secrets -type f -name *.secret -exec /bin/bash -c 'secret={}; \
-			echo "$(date --utc +%FT%T.%3NZ): $(</etc/$(basename ${secret}))" >> \
-				/etc/$(basename ${secret}).old; \
-			tr --delete "\n" <${secret}>  \
-				/etc/$(basename ${secret}); \
-			touch --no-dereference        \
-				/etc/$(basename ${secret})' \;
+		for secret in $(find ${restore}/secrets -type f -name *.secret); do
+			# if available, backup the old secret
+			[[ -f /etc/$(basename ${secret}) ]] &&
+				echo "$(date --utc +%FT%T.%3NZ): $(</etc/$(basename ${secret}))" >> \
+					/etc/$(basename ${secret}).old
+			# restore local secret
+			tr --delete "\n" <${secret}> /etc/$(basename ${secret})
+			touch --no-dereference /etc/$(basename ${secret})
+		done
 	#
 	# restore local keytab(s)
 	[[ -d ${restore}/secrets ]] &&
