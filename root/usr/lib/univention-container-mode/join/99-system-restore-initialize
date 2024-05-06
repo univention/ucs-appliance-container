@@ -162,6 +162,18 @@ command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && com
 			(dpkg-query --list --no-pager 2>/dev/null || dpkg-query --list 2>/dev/null) > \
 				${restore}/packages/dpkg.list
 		}
+		getent group postgres >/dev/null 2>&1 && chown postgres:postgres ${restore}/postgresql || rm --recursive --force ${restore}/postgresql
+		[[ -d ${restore}/postgresql ]] && {
+			if source <(egrep -- ^data_directory /etc/postgresql/*/main/postgresql.conf | sed -E 's/(\s+|#.*$)//g'); then
+				for dump in $(
+					[[ -d ${data_directory} ]] && sudo -u postgres \
+						psql --csv --tuples-only --command='SELECT datname FROM pg_database WHERE datistemplate = false;' 2>/dev/null
+				); do
+					debug "PostgreSQL restore CMD ( pg_restore --format='custom' --jobs='3' ${restore}/postgresql/${dump}.custom.dump )"
+					sudo -u postgres pg_dump --format='custom' --compress='0' --file="${restore}/postgresql/${dump}.custom.dump" ${dump}
+				done
+			fi
+		}
 		[[ -d ${restore}/registry ]] && {
 			# save config registry
 			univention-config-registry dump > \
