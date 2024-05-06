@@ -100,11 +100,37 @@ command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && com
 		rm --recursive --force ${restore}/*
 		#
 		if [[ ${server_role} =~ ^(domaincontroller_master|domaincontroller_backup)$ ]]; then
-			mkdir --parents ${restore}/{bind,certificates,connectors,cups,ldap,packages,registry,samba,saml,ssh,secrets}
+			mkdir --parents ${restore}/{apps,bind,certificates,connectors,cups,ldap,packages,postgresql,registry,samba,saml,ssh,secrets}
 		else
 			mkdir --parents ${restore}/{packages,registry,samba,saml,ssh,secrets}
 		fi
 		#
+		[[ -d ${restore}/apps ]] && {
+			# get current univention app center server url
+			appURL=$(
+				ucr get repository/app_center/server 2>/dev/null | egrep --invert-match -- '^$' ||
+					printf "%s" "appcenter.software-univention.de"
+			)
+			# save local apps ( univention-config-registry value(s) and ini, inst, uinst, ... files )
+			for app in $(ucr search --brief ^appcenter/apps | awk '/installed$/{ split($1,APP,"/"); print APP[3] }'); do
+				appUCS=$(ucr get appcenter/apps/${app}/ucs)
+				appVer=$(ucr get appcenter/apps/${app}/version)
+				appIni=$(
+					find /var/cache/univention-appcenter/${appURL}/${appUCS} -maxdepth 1 -mindepth 1 -type f \
+						-name "${app}.ini" -or -name "${app}_*.ini" -exec \
+							egrep --files-with-matches --only-matching -- "^Version.*${appVer}$" {} \;
+				)
+				# save app files ( ini, inst and uinst )
+				for file in ini inst uinst; do
+					[[ -f ${appIni/.ini/.${file}} ]] && ${RSYNC} ${appIni/.ini/.${file}} ${restore}/apps/${app}.${file}
+				done
+				# save container based app ( config, compose, data and secret )
+				[[ -d /var/lib/univention-appcenter/apps/${app} ]] &&
+					${RSYNC} /var/lib/univention-appcenter/apps/${app}/ ${restore}/apps/${app}
+				# save univention-config-registry value(s)
+				ucr search --brief ^appcenter/apps/${app} > ${restore}/apps/${app}.ucr
+			done
+		}
 		[[ -d ${restore}/bind ]] && {
 			# save local nameserver configurations
 			${RSYNC} /etc/bind ${restore}/bind/etc
