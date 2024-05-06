@@ -34,20 +34,6 @@
 # - switch to GitHub API
 #  => curl --silent --header "Accept: application/vnd.github.v3+json" https://api.github.com/repos/univention/univention-corporate-server/tags | jq -r .[].name
 #  => curl --silent --header "Accept: application/vnd.github.v3+json" https://api.github.com/repos/univention/univention-corporate-server/tags | jq -r .[0].name | tr --complement --delete '[:digit:]'
-# - Fix missing usr-is-merged
-#  => I: Checking component main on https://updates.software-univention.de/...
-#  => E: Couldn't find these debs: usr-is-merged
-# patch /usr/share/debootstrap/scripts/debian-common <<EOF
-# @@ -48,7 +48,7 @@
-#  	# we can install the empty 'usr-is-merged' metapackage to indicate
-#  	# that the transition has been done.
-#  	case "\$CODENAME" in
-# -		etch*|lenny|squeeze|wheezy|jessie*|stretch|buster|bullseye)
-# +		etch*|lenny|squeeze|wheezy|jessie*|stretch|buster|bullseye|ucs*)
-#  			;;
-#  		*)
-#  			required="\$required usr-is-merged"
-# EOF
 
 ## CHECK FOR ROOT USER
 [[ ${LOGNAME} == root ]] || {
@@ -341,7 +327,14 @@ for strap in debootstrap febootstrap; do
 							HTTP=$(${jq} .${PLATFORM}.${strap}.distributions."\"${distribution}\"".codenames."\"${codename}\"".gpg.key.http ${JSON})
 
 							case ${codename} in
-							*) SCRIPT=/usr/share/debootstrap/scripts/stable ;;
+							*) {
+								SCRIPT=/usr/share/debootstrap/scripts/stable
+								sed --sandbox 's/debian/univention-corporate-server/g' ${SCRIPT} > ${SCRIPT/stable/univention-corporate-server}
+								SCRIPT=${SCRIPT/stable/univention-corporate-server}
+
+								COMMON=/usr/share/debootstrap/scripts/debian-common
+								sed --sandbox --expression='/required=/s/ usr-is-merged//' ${COMMON} > ${COMMON/debian/univention-corporate-server}
+							} ;;
 							esac
 
 							MAJOR=$(echo ${codename} | tr --complement --delete '[:digit:]' | awk NF=NF FS= | awk '{ print $1 }')

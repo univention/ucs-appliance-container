@@ -42,6 +42,7 @@
 							"packages": {
 								"variant": "minbase",
 								"include": [
+									"usr-is-merged",
 									"python3-cffi-backend"
 								],
 								"exclude": [],
