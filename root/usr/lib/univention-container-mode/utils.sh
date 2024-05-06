@@ -714,10 +714,9 @@ function UniventionContainerModeRestartCheck() { # UniventionContainerModeRestar
 	ifSystemd && {
 		egrep --quiet --recursive -- '^Install.*systemd' /var/log/apt && {
 
-			if systemctl is-active univention-container-mode-firstboot.service | egrep --quiet -- activating; then
-				[[ -f /etc/univention/base.conf ]] && sed -Ei '/^ConditionPathExists\=\!\/etc\/univention\/base\.conf/d' \
+			[[ -f /dev/shm/univention-container-mode-firstboot-on-failure.service ]] && [[ -f /etc/univention/base.conf ]] &&
+				sed -Ei '/^ConditionPathExists\=\!\/etc\/univention\/base\.conf/d' \
 					/lib/systemd/system/univention-container-mode-firstboot.service
-			fi
 
 			[[ -f /var/backups/univention-container-mode/restore ]] &&
 				touch /var/univention-join/{joined,status}
