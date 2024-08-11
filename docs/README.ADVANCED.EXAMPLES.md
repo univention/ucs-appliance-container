@@ -163,7 +163,7 @@ NETWORK=ucs; FQDN=dc.${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=
     --env DEBUG=TRUE \
     --env install='{"add-app":["samba4","cups"]}' \
     $(echo --env certificates=\''{"root":{"certificate":{"crt":"'$(openssl x509 -outform PEM -in ${CERT} | awk '{ if( NF==1 ){ printf $0 } }')'"},"rsa":{"encryption":{"signkey":"'$(awk '{ if( NF==1 ){ printf $0 } }' ${SIGN})'","encrypted":'$(awk '/^Proc-Type/{ split($2,TYPE,","); if ( TYPE[2]=="ENCRYPTED" ) { printf "true" } }' ${SIGN})',"version":'$(awk '/^Proc-Type/{ split($2,TYPE,","); printf TYPE[1] }' ${SIGN})',"algorithm":"'$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[1] }' ${SIGN})'","password":"'$(tr --delete '\n' < ${PASS})'","salt":"'$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[2] }' ${SIGN})'"}}}}'\') \
-      univention-corporate-server
+      univention/univention-corporate-server
 ```
 
 #### (option -- B) deploy ```HOSTNAME(dc) DOMAINNAME(ucs.example) CONTAINERNAME(dc.ucs.example)``` on ```NETWORK(ucs)``` with container security option ``` ( --privileg ) ``` for Docker in Docker ( dind ) and network file system ( NFS ) too
@@ -188,7 +188,7 @@ NETWORK=ucs; FQDN=dc.${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=
     --env DEBUG=TRUE \
     --env install='{"add-app":["samba4","cups"]}' \
     $(echo --env certificates=\''{"root":{"certificate":{"crt":"'$(openssl x509 -outform PEM -in ${CERT} | awk '{ if( NF==1 ){ printf $0 } }')'"},"rsa":{"encryption":{"signkey":"'$(awk '{ if( NF==1 ){ printf $0 } }' ${SIGN})'","encrypted":'$(awk '/^Proc-Type/{ split($2,TYPE,","); if ( TYPE[2]=="ENCRYPTED" ) { printf "true" } }' ${SIGN})',"version":'$(awk '/^Proc-Type/{ split($2,TYPE,","); printf TYPE[1] }' ${SIGN})',"algorithm":"'$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[1] }' ${SIGN})'","password":"'$(tr --delete '\n' < ${PASS})'","salt":"'$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[2] }' ${SIGN})'"}}}}'\') \
-      univention-corporate-server
+      univention/univention-corporate-server
 ```
 
 #### follow deploying proccess with one or more of these commands ```(CTRL+C OR CTRL+D TO EXIT)```

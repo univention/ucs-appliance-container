@@ -35,7 +35,7 @@ FQDN=dc.ucs.example; \
     --restart unless-stopped \
     --hostname ${FQDN} \
     --name ${FQDN} \
-      univention-corporate-server
+      univention/univention-corporate-server
 ```
 #### follow deploying proccess with one or more of these commands ```(CTRL+C OR CTRL+D TO EXIT)```
 ```bash
@@ -99,7 +99,7 @@ MASTER=dc.ucs.example; FQDN=s${MASTER}; \
     --env dcpass=$(docker exec --tty ${MASTER} cat /dev/shm/univention-container-mode.secrets) \
     --hostname ${FQDN} \
     --name ${FQDN} \
-      univention-corporate-server
+      univention/univention-corporate-server
 ```
 #### follow deploying proccess with one or more of these commands ```(CTRL+C OR CTRL+D TO EXIT)```
 ```bash
@@ -161,7 +161,7 @@ MASTER=dc.ucs.example; FQDN=b${MASTER}; \
     --env dcpass=$(docker exec --tty ${MASTER} cat /dev/shm/univention-container-mode.secrets) \
     --hostname ${FQDN} \
     --name ${FQDN} \
-      univention-corporate-server
+      univention/univention-corporate-server
 ```
 #### follow deploying proccess with one or more of these commands ```(CTRL+C OR CTRL+D TO EXIT)```
 ```bash
@@ -223,7 +223,7 @@ MASTER=dc.ucs.example; FQDN=m${MASTER}; \
     --env dcpass=$(docker exec --tty ${MASTER} cat /dev/shm/univention-container-mode.secrets) \
     --hostname ${FQDN} \
     --name ${FQDN} \
-      univention-corporate-server
+      univention/univention-corporate-server
 ```
 #### follow deploying proccess with one or more of these commands ```(CTRL+C OR CTRL+D TO EXIT)```
 ```bash

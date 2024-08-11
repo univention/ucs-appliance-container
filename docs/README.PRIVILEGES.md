@@ -43,7 +43,7 @@ docker run \
   --cap-add SYS_ADMIN \
   --cap-add CAP_MKNOD \
   --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
-    univention-corporate-server
+    univention/univention-corporate-server
 ```
 
 ```bash
@@ -53,7 +53,7 @@ podman run \
   --cap-add CAP_MKNOD \
   --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
   --cap-add CAP_NET_RAW \
-    univention-corporate-server
+    univention/univention-corporate-server
 ```
 
 Podman >= 3.1.0[^2].
@@ -63,7 +63,7 @@ podman run \
   --systemd true \
   --cap-add SYS_ADMIN \
   --cap-add CAP_MKNOD \
-    univention-corporate-server
+    univention/univention-corporate-server
 ```
 
 This will likely generate a lot of warnings and errors in systemd journal ```( journalctl -xe )```.
@@ -79,7 +79,7 @@ docker run \
   --cap-add SYS_MODULE \
   --volume /lib/modules:/lib/modules:ro \
   --cap-add SYS_TIME \
-    univention-corporate-server
+    univention/univention-corporate-server
 ```
 
 ```bash
@@ -92,7 +92,7 @@ podman run \
   --volume /lib/modules:/lib/modules:ro \
   --cap-add SYS_TIME \
   --cap-add CAP_NET_RAW \
-    univention-corporate-server
+    univention/univention-corporate-server
 ```
 
 Podman >= 3.1.0[^2].
@@ -105,7 +105,7 @@ podman run \
   --cap-add SYS_MODULE \
   --volume /lib/modules:/lib/modules:ro \
   --cap-add SYS_TIME \
-    univention-corporate-server
+    univention/univention-corporate-server
 ```
 
 Read more about [SYS_ADMIN, CAP_MKNOD and SYS_MODULE](https://systemd.io/CONTAINER_INTERFACE/), also check [systemd](https://www.freedesktop.org/software/systemd/man/systemd-detect-virt.html) virt environment detection.
@@ -120,7 +120,7 @@ docker run \
   --privileged \
   --volume /sys/fs/cgroup:/sys/fs/cgroup:ro \
   --volume /lib/modules:/lib/modules:ro \
-    univention-corporate-server
+    univention/univention-corporate-server
 ```
 
 Podman >= 3.1.0[^2].
@@ -130,7 +130,7 @@ podman run \
   --privileged \
   --systemd true \
   --volume /lib/modules:/lib/modules:ro \
-    univention-corporate-server
+    univention/univention-corporate-server
 ```
 
 #### univention container based apps from [catalog](https://www.univention.com/products/app-catalog/) like [keycloak](https://www.univention.com/products/app-catalog/keycloak/)

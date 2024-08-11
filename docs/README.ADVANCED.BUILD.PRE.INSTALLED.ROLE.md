@@ -46,7 +46,7 @@ docker image inspect --format '{{ index .Config.Labels "org.label-schema.docker.
 ## Build a deployment container image with docker and pre installed role ```( optionally with time )```
 ```bash
 declare -A roles[master]="primary directory node" roles[slave]="replica directory node" roles[backup]="backup directory node" roles[member]="managed node"; \
-MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="latest"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention/univention-corporate-server"; TAG="latest"; \
 for role in ${!roles[*]}; do \
   time docker build \
     --build-arg role="${role}" \
@@ -61,14 +61,14 @@ for role in ${!roles[*]}; do \
     --file ./pre.installed.role.Dockerfile . ; \
 done
 ...
-Successfully tagged univention-corporate-server-${role}:${MAJOR}.${MINOR}-${PATCH}
-Successfully tagged univention-corporate-server-${role}:latest
+Successfully tagged univention/univention-corporate-server-${role}:${MAJOR}.${MINOR}-${PATCH}
+Successfully tagged univention/univention-corporate-server-${role}:latest
 ...
 ```
 ### Container image build with docker, pre installed role and as Active Directory-compatible Domain Controller ```( experimental )```
 ```bash
 declare -A roles[master]="primary directory node" roles[slave]="replica directory node" roles[backup]="backup directory node" roles[member]="managed node"; \
-MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="latest"; APPS="samba4"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention/univention-corporate-server"; TAG="latest"; APPS="samba4"; \
 for role in ${!roles[*]}; do \
   apps=$([[ ${role} =~ member ]] && echo -e '' || echo -e '-ad-dc'); \
   time docker build \
@@ -85,18 +85,18 @@ for role in ${!roles[*]}; do \
     --file ./pre.installed.role.Dockerfile . ; \
 done
 ...
-Successfully tagged univention-corporate-server-${role}${apps}:${MAJOR}.${MINOR}-${PATCH}
-Successfully tagged univention-corporate-server-${role}${apps}:latest
+Successfully tagged univention/univention-corporate-server-${role}${apps}:${MAJOR}.${MINOR}-${PATCH}
+Successfully tagged univention/univention-corporate-server-${role}${apps}:latest
 ...
 ```
 ### Inspect the univention-corporate-server-${role} container image size
 ```bash
-docker images --format 'table {{ .Repository }}\t\t{{ .Size }}' univention-corporate-server*latest
+docker images --format 'table {{ .Repository }}\t\t{{ .Size }}' univention/univention-corporate-server*latest
 ```
 ## Build a deployment container image with podman and pre installed role ```( optionally with time )```
 ```bash
 declare -A roles[master]="primary directory node" roles[slave]="replica directory node" roles[backup]="backup directory node" roles[member]="managed node"; \
-MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="latest"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention/univention-corporate-server"; TAG="latest"; \
 for role in ${!roles[*]}; do \
   time podman build \
     --format docker \
@@ -112,14 +112,14 @@ for role in ${!roles[*]}; do \
     --file ./pre.installed.role.Dockerfile . ; \
 done
 ...
-Successfully tagged univention-corporate-server-${role}:${MAJOR}.${MINOR}-${PATCH}
-Successfully tagged univention-corporate-server-${role}:latest
+Successfully tagged univention/univention-corporate-server-${role}:${MAJOR}.${MINOR}-${PATCH}
+Successfully tagged univention/univention-corporate-server-${role}:latest
 ...
 ```
 ### Container image build with podman, pre installed role and as Active Directory-compatible Domain Controller ```( experimental )```
 ```bash
 declare -A roles[master]="primary directory node" roles[slave]="replica directory node" roles[backup]="backup directory node" roles[member]="managed node"; \
-MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="latest"; APPS="samba4"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention/univention-corporate-server"; TAG="latest"; APPS="samba4"; \
 for role in ${!roles[*]}; do \
   apps=$([[ ${role} =~ member ]] && echo -e '' || echo -e '-ad-dc'); \
   time podman build \
@@ -137,11 +137,11 @@ for role in ${!roles[*]}; do \
     --file ./pre.installed.role.Dockerfile . ; \
 done
 ...
-Successfully tagged univention-corporate-server-${role}${apps}:${MAJOR}.${MINOR}-${PATCH}
-Successfully tagged univention-corporate-server-${role}${apps}:latest
+Successfully tagged univention/univention-corporate-server-${role}${apps}:${MAJOR}.${MINOR}-${PATCH}
+Successfully tagged univention/univention-corporate-server-${role}${apps}:latest
 ...
 ```
 ### Inspect the univention-corporate-server-${role} container image size
 ```bash
-podman images --format 'table {{ .Repository }}\t\t{{ .Size }}' univention-corporate-server*latest
+podman images --format 'table {{ .Repository }}\t\t{{ .Size }}' univention/univention-corporate-server*latest
 ```
