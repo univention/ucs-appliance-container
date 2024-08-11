@@ -46,29 +46,29 @@ docker image inspect --format '{{ index .Config.Labels "org.label-schema.docker.
 ## Build a deployment container image with docker and pre installed role ```( optionally with time )```
 ```bash
 declare -A roles[master]="primary directory node" roles[slave]="replica directory node" roles[backup]="backup directory node" roles[member]="managed node"; \
-VERSION="5.0-7"; IMAGE="univention-corporate-server"; TAG="latest"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="latest"; \
 for role in ${!roles[*]}; do \
   time docker build \
     --build-arg role="${role}" \
     --build-arg ROLE="${roles[${role}]}" \
     --build-arg NAME="${roles[${role}]// /-}" \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-    --build-arg VERSION=${VERSION} \
+    --build-arg VERSION=${MAJOR}.${MINOR}-${PATCH} \
     --build-arg IMAGE=${IMAGE} \
     --build-arg TAG=${TAG} \
-    --tag ${IMAGE}-${role}:${VERSION} \
+    --tag ${IMAGE}-${role}:${MAJOR}.${MINOR}-${PATCH} \
     --tag ${IMAGE}-${role}:${TAG} \
     --file ./pre.installed.role.Dockerfile . ; \
 done
 ...
-Successfully tagged univention-corporate-server-${role}:${VERSION}
+Successfully tagged univention-corporate-server-${role}:${MAJOR}.${MINOR}-${PATCH}
 Successfully tagged univention-corporate-server-${role}:latest
 ...
 ```
 ### Container image build with docker, pre installed role and as Active Directory-compatible Domain Controller ```( experimental )```
 ```bash
 declare -A roles[master]="primary directory node" roles[slave]="replica directory node" roles[backup]="backup directory node" roles[member]="managed node"; \
-VERSION="5.0-7"; IMAGE="univention-corporate-server"; TAG="latest"; APPS="samba4"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="latest"; APPS="samba4"; \
 for role in ${!roles[*]}; do \
   apps=$([[ ${role} =~ member ]] && echo -e '' || echo -e '-ad-dc'); \
   time docker build \
@@ -77,15 +77,15 @@ for role in ${!roles[*]}; do \
     --build-arg NAME="${roles[${role}]// /-}" \
     --build-arg APPS="$([[ ${role} =~ member ]] && echo ${APPS//samba[[:digit:]]/} || echo ${APPS} )" \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-    --build-arg VERSION=${VERSION} \
+    --build-arg VERSION=${MAJOR}.${MINOR}-${PATCH} \
     --build-arg IMAGE=${IMAGE} \
     --build-arg TAG=${TAG} \
-    --tag ${IMAGE}-${role}${apps}:${VERSION} \
+    --tag ${IMAGE}-${role}${apps}:${MAJOR}.${MINOR}-${PATCH} \
     --tag ${IMAGE}-${role}${apps}:${TAG} \
     --file ./pre.installed.role.Dockerfile . ; \
 done
 ...
-Successfully tagged univention-corporate-server-${role}${apps}:${VERSION}
+Successfully tagged univention-corporate-server-${role}${apps}:${MAJOR}.${MINOR}-${PATCH}
 Successfully tagged univention-corporate-server-${role}${apps}:latest
 ...
 ```
@@ -96,7 +96,7 @@ docker images --format 'table {{ .Repository }}\t\t{{ .Size }}' univention-corpo
 ## Build a deployment container image with podman and pre installed role ```( optionally with time )```
 ```bash
 declare -A roles[master]="primary directory node" roles[slave]="replica directory node" roles[backup]="backup directory node" roles[member]="managed node"; \
-VERSION="5.0-7"; IMAGE="univention-corporate-server"; TAG="latest"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="latest"; \
 for role in ${!roles[*]}; do \
   time podman build \
     --format docker \
@@ -104,22 +104,22 @@ for role in ${!roles[*]}; do \
     --build-arg ROLE="${roles[${role}]}" \
     --build-arg NAME="${roles[${role}]// /-}" \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-    --build-arg VERSION=${VERSION} \
+    --build-arg VERSION=${MAJOR}.${MINOR}-${PATCH} \
     --build-arg IMAGE=${IMAGE} \
     --build-arg TAG=${TAG} \
-    --tag ${IMAGE}-${role}:${VERSION} \
+    --tag ${IMAGE}-${role}:${MAJOR}.${MINOR}-${PATCH} \
     --tag ${IMAGE}-${role}:${TAG} \
     --file ./pre.installed.role.Dockerfile . ; \
 done
 ...
-Successfully tagged univention-corporate-server-${role}:${VERSION}
+Successfully tagged univention-corporate-server-${role}:${MAJOR}.${MINOR}-${PATCH}
 Successfully tagged univention-corporate-server-${role}:latest
 ...
 ```
 ### Container image build with podman, pre installed role and as Active Directory-compatible Domain Controller ```( experimental )```
 ```bash
 declare -A roles[master]="primary directory node" roles[slave]="replica directory node" roles[backup]="backup directory node" roles[member]="managed node"; \
-VERSION="5.0-7"; IMAGE="univention-corporate-server"; TAG="latest"; APPS="samba4"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="latest"; APPS="samba4"; \
 for role in ${!roles[*]}; do \
   apps=$([[ ${role} =~ member ]] && echo -e '' || echo -e '-ad-dc'); \
   time podman build \
@@ -129,15 +129,15 @@ for role in ${!roles[*]}; do \
     --build-arg NAME="${roles[${role}]// /-}" \
     --build-arg APPS="$([[ ${role} =~ member ]] && echo ${APPS//samba[[:digit:]]/} || echo ${APPS} )" \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-    --build-arg VERSION=${VERSION} \
+    --build-arg VERSION=${MAJOR}.${MINOR}-${PATCH} \
     --build-arg IMAGE=${IMAGE} \
     --build-arg TAG=${TAG} \
-    --tag ${IMAGE}-${role}${apps}:${VERSION} \
+    --tag ${IMAGE}-${role}${apps}:${MAJOR}.${MINOR}-${PATCH} \
     --tag ${IMAGE}-${role}${apps}:${TAG} \
     --file ./pre.installed.role.Dockerfile . ; \
 done
 ...
-Successfully tagged univention-corporate-server-${role}${apps}:${VERSION}
+Successfully tagged univention-corporate-server-${role}${apps}:${MAJOR}.${MINOR}-${PATCH}
 Successfully tagged univention-corporate-server-${role}${apps}:latest
 ...
 ```

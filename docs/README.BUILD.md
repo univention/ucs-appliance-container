@@ -14,55 +14,23 @@ STDOUT ( succeed )
 STDOUT ( timeing )
 ...
 ```
-## Build minbase bootstrap container image from scratch ```( optionally with time and/or --slimify )```
-Script for docker or podman with debootstrap that imports the first container image to local registry. But, there are some dependencies for this. You can have a look into the script [bootstrap.sh](../bootstrap/bootstrap.sh) or maybe you will get some instructions to fix them. As you will see, the command option ``` --slimify ``` will disable and erase the man pages and unnecessary locales too. But remember that the ``` ${TAG} ``` will be expanded to include ``` -slim ```.
-```bash
-VERSION="5.0-7"; \
-  time /bin/bash bootstrap/bootstrap.sh \
-    --use-cache \
-    --arch amd64 \
-    --distribution univention-corporate-server \
-    --codename ucs$(echo ${VERSION} | tr --complement --delete '[:digit:]')
-...
-I: Base system installed successfully.
-...
-real  0m43,683s
-user  0m42,266s
-sys   0m11,632s
-...
-```
-If your an non root podman user, an extra step is requerd:
-```bash
-# sudo podman import --message "..." univention-corporate-server.tar univention-corporate-server-debootstrap:${VERSION}
-# sudo podman image tag univention-corporate-server-debootstrap:${VERSION} univention-corporate-server-debootstrap:latest
-```
-For podman users, give this a try in your shell/bash. With or without sudo privileges.
-```bash
-alias docker="podman"
-alias docker="sudo podman"
-```
-### Inspect the minbase bootstrap container image
-```bash
-docker image inspect univention-corporate-server-debootstrap:latest
-```
 ## Build a deployment container image with docker ```( optionally with time )```
 ```bash
-VERSION="5.0-7"; IMAGE="univention-corporate-server-debootstrap"; TAG="latest"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="latest"; \
   time docker build \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-    --build-arg VERSION=${VERSION} \
-    --build-arg COMMENT="$(docker image inspect --format '{{.Comment}}' ${IMAGE}:${TAG})" \
-    --build-arg IMAGE=${IMAGE} \
-    --build-arg TAG=${TAG} \
-    --tag univention-corporate-server:${VERSION} \
-    --tag univention-corporate-server:${TAG} .
+    --build-arg MAJOR=${MAJOR} \
+    --build-arg MINOR=${MINOR} \
+    --build-arg PATCH=${PATCH} \
+    --tag ${IMAGE}:${MAJOR}.${MINOR}-${PATCH} \
+    --tag ${IMAGE}:${TAG} .
 ...
-Successfully tagged univention-corporate-server:${VERSION}
+Successfully tagged univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}
 Successfully tagged univention-corporate-server:latest
 ...
-real  0m26,524s
-user   0m0,118s
-sys    0m0,083s
+real  6m57,659s
+user   0m1,098s
+sys    0m0,901s
 ...
 ```
 ### Inspect the univention-corporate-server container image
@@ -71,22 +39,22 @@ docker image inspect univention-corporate-server:latest
 ```
 ## Build a deployment container image with podman ```( optionally with time )```
 ```bash
-VERSION="5.0-7"; IMAGE="univention-corporate-server-debootstrap"; TAG="latest"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="latest"; \
   time podman build \
     --format docker \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-    --build-arg VERSION=${VERSION} \
-    --build-arg COMMENT="$(podman image inspect --format '{{.Comment}}' ${IMAGE}:${TAG})" \
-    --build-arg IMAGE=${IMAGE} \
-    --build-arg TAG=${TAG} \
-    --tag univention-corporate-server:${VERSION} \
-    --tag univention-corporate-server:${TAG} .
+    --build-arg MAJOR=${MAJOR} \
+    --build-arg MINOR=${MINOR} \
+    --build-arg PATCH=${PATCH} \
+    --tag ${IMAGE}:${MAJOR}.${MINOR}-${PATCH} \
+    --tag ${IMAGE}:${TAG} .
 ...
-COMMIT univention-corporate-server:${VERSION}
+Successfully tagged univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}
+Successfully tagged univention-corporate-server:latest
 ...
-real  0m32,375s
-user  0m24,320s
-sys   0m14,723s
+real  7m12,531s
+user   0m0,105s
+sys    0m0,126s
 ...
 ```
 ### Inspect the univention-corporate-server container image

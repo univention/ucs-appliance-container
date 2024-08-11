@@ -14,52 +14,24 @@ STDOUT ( succeed )
 STDOUT ( timeing )
 ...
 ```
-## Advanced build minbase bootstrap container image from scratch ```( optionally with time and/or --slimify )```
-Script for docker or podman with debootstrap that imports the first container image directly from testing repository ( [updates-test.software-univention.de](https://updates-test.software-univention.de/) ) to your local container registry. As you will see, the command option ``` --slimify ``` will disable and erase the man pages and unnecessary locales too. But remember that the ``` ${TAG} ``` will be expanded to include ``` -slim ```. All dpkg -- Debian package manager config files are located under [dpkg.cfg.d](../root/etc/dpkg/dpkg.cfg.d)
-.
-```bash
-VERSION="5.0-7"; \
-  time /bin/bash bootstrap/bootstrap.sh \
-    --use-cache \
-    --arch amd64 \
-    --distribution univention-corporate-server-test \
-    --codename ucs$(echo ${VERSION} | tr --complement --delete '[:digit:]')
-...
-I: Base system installed successfully.
-...
-real  0m45,367s
-user  0m41,346s
-sys   0m12,882s
-...
-```
-If your an non root podman user, an extra step is requerd:
-```bash
-# sudo podman import --message "..." univention-corporate-server-test.tar univention-corporate-server-debootstrap:${VERSION}-test
-# sudo podman image tag univention-corporate-server-debootstrap:${VERSION}-test univention-corporate-server-debootstrap:test
-```
-### Inspect the minbase bootstrap container image
-```bash
-docker image inspect univention-corporate-server-debootstrap:test
-```
 ## Build a deployment container image with different repository server using docker build ```( optionally with time )```
 ```bash
-VERSION="5.0-7"; IMAGE="univention-corporate-server-debootstrap"; TAG="test"; MIRROR="https://updates-test.software-univention.de/"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="test"; UPDATES="updates-test.software-univention.de"; \
   time docker build \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-    --build-arg MIRROR=${MIRROR} \
-    --build-arg VERSION="${VERSION}-${TAG}" \
-    --build-arg COMMENT="$(docker image inspect --format '{{.Comment}}' ${IMAGE}:${TAG})" \
-    --build-arg IMAGE=${IMAGE} \
-    --build-arg TAG=${TAG} \
-    --tag univention-corporate-server:${VERSION}-${TAG} \
+    --build-arg UPDATES=${UPDATES} \
+    --build-arg MAJOR=${MAJOR} \
+    --build-arg MINOR=${MINOR} \
+    --build-arg PATCH=${PATCH} \
+    --tag univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG} \
     --tag univention-corporate-server:${TAG} .
 ...
-Successfully tagged univention-corporate-server:${VERSION}-${TAG}
+Successfully tagged univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG}
 Successfully tagged univention-corporate-server:test
 ...
-real  0m44,781s
-user  0m40,974s
-sys   0m12,485s
+real  6m57,659s
+user   0m1,098s
+sys    0m0,901s
 ...
 ```
 ### Inspect the univention-corporate-server container image
@@ -68,27 +40,126 @@ docker image inspect univention-corporate-server:test
 ```
 ## Build a deployment container image with different repository server using podman build ```( optionally with time )```
 ```bash
-VERSION="5.0-7"; IMAGE="univention-corporate-server-debootstrap"; TAG="test"; MIRROR="https://updates-test.software-univention.de/"; \
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="test"; UPDATES="updates-test.software-univention.de"; \
   time podman build \
     --format docker \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-    --build-arg MIRROR=${MIRROR} \
-    --build-arg VERSION="${VERSION}-${TAG}" \
-    --build-arg COMMENT="$(podman image inspect --format '{{.Comment}}' ${IMAGE}:${TAG})" \
-    --build-arg IMAGE=${IMAGE} \
-    --build-arg TAG=${TAG} \
-    --tag univention-corporate-server:${VERSION}-${TAG} \
+    --build-arg UPDATES=${UPDATES} \
+    --build-arg MAJOR=${MAJOR} \
+    --build-arg MINOR=${MINOR} \
+    --build-arg PATCH=${PATCH} \
+    --tag univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG} \
     --tag univention-corporate-server:${TAG} .
 ...
-Successfully tagged univention-corporate-server:${VERSION}-${TAG}
+Successfully tagged univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG}
 Successfully tagged univention-corporate-server:test
 ...
-real  0m31,228s
-user  0m24,455s
-sys   0m14,547s
+real  6m58,351s
+user   0m0,102s
+sys    0m0,097s
 ...
 ```
 ### Inspect the univention-corporate-server container image
 ```bash
 podman image inspect univention-corporate-server:test
+```
+## Build a deployment container image as a slimify variant using docker build ```( optionally with time )```
+```bash
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="test"; SLIM="slim"; UPDATES="updates-test.software-univention.de"; \
+  time docker build \
+    --build-arg SLIM=${SLIM} \
+    --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+    --build-arg UPDATES=${UPDATES} \
+    --build-arg MAJOR=${MAJOR} \
+    --build-arg MINOR=${MINOR} \
+    --build-arg PATCH=${PATCH} \
+    --tag univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG}-${SLIM} \
+    --tag univention-corporate-server:${TAG}-${SLIM} .
+...
+Successfully tagged univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG}-${SLIM}
+Successfully tagged univention-corporate-server:test-slim
+...
+real  6m42,444s
+user   0m0,999s
+sys    0m0,819s
+...
+```
+### Inspect the univention-corporate-server container image
+```bash
+docker image inspect univention-corporate-server:test-slim
+```
+## Build a deployment container image as a slimify variant using podman build ```( optionally with time )```
+```bash
+MAJOR=5; MINOR=0; PATCH=8; IMAGE="univention-corporate-server"; TAG="test"; SLIM="slim"; UPDATES="updates-test.software-univention.de"; \
+  time podman build \
+    --format docker \
+    --build-arg SLIM=${SLIM} \
+    --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+    --build-arg UPDATES=${UPDATES} \
+    --build-arg MAJOR=${MAJOR} \
+    --build-arg MINOR=${MINOR} \
+    --build-arg PATCH=${PATCH} \
+    --tag univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG}-${SLIM} \
+    --tag univention-corporate-server:${TAG}-${SLIM} .
+...
+Successfully tagged univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG}-${SLIM}
+Successfully tagged univention-corporate-server:test-slim
+...
+real   7m2,239s
+user   0m0,024s
+sys    0m0,068s
+...
+```
+### Inspect the univention-corporate-server container image
+```bash
+podman image inspect univention-corporate-server:test-slim
+```
+## Build a deployment container image with the latest development version using docker build ```( optionally with time )```
+```bash
+MAJOR=0; MINOR=0; PATCH=0; IMAGE="univention-corporate-server"; TAG="devel"; UPDATES="updates-test.software-univention.de"; \
+  time docker build \
+    --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+    --build-arg UPDATES=${UPDATES} \
+    --build-arg MAJOR=${MAJOR} \
+    --build-arg MINOR=${MINOR} \
+    --build-arg PATCH=${PATCH} \
+    --tag univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG} \
+    --tag univention-corporate-server:${TAG} .
+...
+Successfully tagged univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG}
+Successfully tagged univention-corporate-server:devel
+...
+real  6m58,719s
+user   0m1,197s
+sys    0m0,765s
+...
+```
+### Inspect the univention-corporate-server container image
+```bash
+docker image inspect univention-corporate-server:devel
+```
+## Build a deployment container image with the latest development version using podman build ```( optionally with time )```
+```bash
+MAJOR=0; MINOR=0; PATCH=0; IMAGE="univention-corporate-server"; TAG="devel"; UPDATES="updates-test.software-univention.de"; \
+  time podman build \
+    --format docker \
+    --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+    --build-arg UPDATES=${UPDATES} \
+    --build-arg MAJOR=${MAJOR} \
+    --build-arg MINOR=${MINOR} \
+    --build-arg PATCH=${PATCH} \
+    --tag univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG} \
+    --tag univention-corporate-server:${TAG} .
+...
+Successfully tagged univention-corporate-server:${MAJOR}.${MINOR}-${PATCH}-${TAG}
+Successfully tagged univention-corporate-server:devel
+...
+real  8m11,503s
+user   0m0,125s
+sys    0m0,137s
+...
+```
+### Inspect the univention-corporate-server container image
+```bash
+podman image inspect univention-corporate-server:devel
 ```

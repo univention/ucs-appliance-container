@@ -2,9 +2,6 @@
 
 This is a self deploying container for running a [Univention Corporate Server](https://www.univention.com/products/ucs/) ([UCS](https://docs.software-univention.de/manual.html)) with the role of [primary](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) directory node or [managed](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node) node.
 
-## [Build your own bootstrap container image](docs/README.BUILD.md) ```( optionally )```
-If you like, you can build your own minbase container image from scratch. You find a script called [bootstrap.sh](bootstrap/bootstrap.sh), this works for docker or podman.
-
 ## [Build your own container image or take a look on Docker Hub](docs/README.BUILD.md)
 ```bash
 docker search univention/univention-corporate-server
@@ -22,8 +19,8 @@ Here you will find all basic examples for running a ucs with different systems r
 ## [Advanced examples](docs/README.ADVANCED.EXAMPLES.md)
 Here you will find advanced example(s) for running a ucs with different systems roles and some additional options, like networking and external certificate(s).
 
-## [Advanced container image build with bootstrap](docs/README.ADVANCED.BUILD.md)
-Build your own minbase container image from scratch and directly from testing repository ( [updates-test.software-univention.de](https://updates-test.software-univention.de/) ) to your local container registry.
+## [Advanced container image build](docs/README.ADVANCED.BUILD.md)
+Build your own container image from scratch and directly from testing repository ( [updates-test.software-univention.de](https://updates-test.software-univention.de/) ) to your local container registry.
 
 ## [Advanced container image build with pre installed role](docs/README.ADVANCED.BUILD.PRE.INSTALLED.ROLE.md)
 Build your own container image with pre installed role of [primary](https://docs.software-univention.de/manual.html#domain-ldap:Primary_Directory_Node), [backup](https://docs.software-univention.de/manual.html#domain-ldap:Backup_Directory_Node), [replica](https://docs.software-univention.de/manual.html#domain-ldap:Replica_Directory_Node) directory node or [managed](https://docs.software-univention.de/manual.html#domain-ldap:Managed_Node) node to your local container registry.

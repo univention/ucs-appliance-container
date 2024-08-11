@@ -1,16 +1,247 @@
-ARG IMAGE=univention/univention-corporate-server-debootstrap
-ARG TAG=latest
-FROM ${IMAGE}:${TAG} AS BUILD
+FROM alpine AS bootstrap
+#
+## install minimal dependencies ( python is not normally used )
+#
+ARG APK="apk add --quiet --update"
+RUN ${APK} ca-certificates curl debootstrap dpkg gpg gpg-agent
+#
+## set target to slimify ( --build-arg SLIM=<at least one character> )
+#
+ARG SLIM=
+#
+## set target architecture
+#
+ARG ARCH=amd64
+#
+## set target major, minor and patch
+#
+ARG MAJOR=0
+ARG MINOR=0
+ARG PATCH=0
+#
+## set update mirror fqdn
+#
+ARG UPDATES="updates.software-univention.de"
+#
+## set update mirror uri ( uri + root => mirror url )
+#
+ARG PROTOCL="https://"
+#
+## set update mirror url ( https://manpages.debian.org/stretch/apt/sources.list.5.en.html#URI_SPECIFICATION )
+#
+ARG REPOSITORY="${PROTOCL}${UPDATES}"
+#
+## fix target version string ( get latest version from repository json file )
+#
+COPY <<-EOF repository.releases.py
+import os; import sys; import json; import urllib.request;
 
-RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+### default univention repository mirrors
+#
+#  production: https://updates.software-univention.de/
+# development: https://updates-test.software-univention.de/
+#
+url = os.environ.get('REPOSITORY', 'https://updates.software-univention.de')
+#
+status = 'maintained' if not 'test' in url else 'development'
+#
+### default univention ucs-releases.json from repository mirror
+#
+#{
+#    "releases": [
+#        {
+#            "major": Number,
+#            "minors": [
+#                {
+#                    "minor": Number,
+#                    "patchlevels": [
+#                        {
+#                            "patchlevel": Number,
+#                            "status": String("development", "maintained", "end-of-life")
+#                        }
+#                    ]
+#                }
+#            ]
+#        }
+#    ]
+#}
+#
+try:
+  request = urllib.request.urlopen(f'{url}/ucs-releases.json')
+  content = request.info().get_content_charset('utf-8')
+  response = json.loads(request.read().decode(content))
+except:
+  sys.exit(1)
+#
+### get releases filterd by status('maintained' or 'development')
+#
+for keys in response.keys():
+  if keys == 'releases':
+    for releases in response[keys]:
+      for majors in releases.keys():
+        if majors == 'major':
+          MAJOR=releases[majors]
+
+        if majors == 'minors':
+          for minors in releases[majors]:
+            for minor in minors.keys():
+              if minor == 'minor':
+                MINOR=minors[minor]
+
+              if minor == 'patchlevels':
+                for patches in minors[minor]:
+                  if patches['status'] == status:
+                    PATCH=patches['patchlevel']
+                    print(f"{MAJOR}.{MINOR}-{PATCH}")
+EOF
+#
+## set debootstrap minbase default environment ( is checked and adjusted at runtime )
+# DEBOOTSTRAP: <string> ["PATH(/usr/sbin/debootstrap)"]
+ARG DEBOOTSTRAP=/usr/sbin/debootstrap
+# KEYRING: <string> ["PATH(/usr/share/keyrings/univention-archive-key-ucs-${MAJOR}x.gpg)"]
+ARG KEYRING="/usr/share/keyrings/univention-archive-key-ucs-${MAJOR}x.gpg"
+# DEFAULT: <string> ["apt-transport-https,apt-utils,debconf-utils"]
+ARG DEFAULT="apt-transport-https,apt-utils,debconf-utils"
+# INCLUDE: <string> ["python3-cffi-backend"]
+ARG INCLUDE="python3-cffi-backend"
+# OPTION: <string> ["/usr/sbin/debootstrap --help to see all option(s)"]
+ARG OPTION="--force-check-gpg --include ${DEFAULT},${INCLUDE} --variant minbase --keyring ${KEYRING} --arch ${ARCH}"
+# SUITE: <string> ["ucs${MAJOR}${MINOR}${PATCH}"]
+ARG SUITE="ucs${MAJOR}${MINOR}${PATCH}"
+# TARGET: <string> ["PATH(/var/cache/debootstrap)"]
+ARG TARGET=/var/cache/debootstrap
+# MIRROR: <string> ["https://updates.software-univention.de"]
+ARG MIRROR="${REPOSITORY}/${MAJOR}.${MINOR}/maintained/${MAJOR}.${MINOR}-${PATCH}"
+# SCRIPTS: <string> ["PATH(/usr/share/debootstrap/scripts)"]
+ARG SCRIPTS=/usr/share/debootstrap/scripts
+# SCRIPT: <string> ["PATH(${SCRIPTS}/stable)"]
+ARG SCRIPT="${SCRIPTS}/stable"
+# BOOTSTRAP: <string> ["debootstrap ${OPTION} ${SUITE} ${TARGET} ${MIRROR} ${SCRIPT}"]
+ARG BOOTSTRAP="${DEBOOTSTRAP} --verbose ${OPTION} ${SUITE} ${TARGET} ${MIRROR} ${SCRIPT}"
+#
+#
+## run debootstrap
+#
+RUN --mount=type=cache,target=${TARGET}-package-cache <<EOR
+function getKeys() {
+	local major=0
+	while [ $((${MAJOR} + 1)) -gt ${major} ]; do
+		major=$((${major} + 1))
+		wget -q -P ${1:-${TARGET}}/etc/apt/trusted.gpg.d/ ${REPOSITORY}/univention-archive-key-ucs-${major}x.gpg 2>/dev/null || continue
+	done
+}
+
+if echo "${MAJOR}.${MINOR}-${PATCH}" | grep -E -q -- "^0.0-0$"; then
+	echo "WARN missing build arguments for major, minor and patch. The target version will be set to latest release, depend on repository url."
+	${APK} python3
+
+	export VERSION=$(
+		python repository.releases.py | awk '/[[:digit:]]\.[[:digit:]]\-[[:digit:]]/{ print $0 }' | tail -1
+	)
+
+	export MAJOR=$(echo ${VERSION} | awk '{ gsub(/-/, ".", $0); split($0, VERSION, "."); printf VERSION[1] }')
+	export MINOR=$(echo ${VERSION} | awk '{ gsub(/-/, ".", $0); split($0, VERSION, "."); printf VERSION[2] }')
+	export PATCH=$(echo ${VERSION} | awk '{ gsub(/-/, ".", $0); split($0, VERSION, "."); printf VERSION[3] }')
+
+	export SUITE="ucs${MAJOR}${MINOR}${PATCH}"
+
+	export MIRROR="${REPOSITORY}/${MAJOR}.${MINOR}/maintained/${MAJOR}.${MINOR}-${PATCH}"
+	export KEYRING="/usr/share/keyrings/univention-archive-key-ucs-${MAJOR}x.gpg"
+	export OPTION="--force-check-gpg --include ${DEFAULT},${INCLUDE} --variant minbase --keyring ${KEYRING} --arch ${ARCH}"
+	echo "INFO the target version is set to ${MAJOR}.${MINOR}-${PATCH} and keyring $(basename ${KEYRING}) is used."
+fi
+
+if echo "${MAJOR}.${MINOR}-${PATCH}" | grep -E -q -- "^[[:digit:]]{1,3}.[[:digit:]]{1,3}-[[:digit:]]{1,3}$"; then
+	echo "INFO the target version is set to ${MAJOR}.${MINOR}-${PATCH} and repository url ${REPOSITORY} is used."
+
+	sed -e '/required=/s/ usr-is-merged//' -i ${SCRIPTS}/debian-common
+
+	if dpkg --compare-versions ${MAJOR} ge 5; then
+		export MIRROR=${REPOSITORY}
+	fi
+
+	wget -q -P /tmp/ ${MIRROR}/dists/${SUITE}/Release
+	wget -q -P /tmp/ ${MIRROR}/dists/${SUITE}/Release.gpg
+
+	for i in $(seq 3); do
+		test -e ${KEYRING} || curl -sSf -o ${KEYRING} -L ${REPOSITORY}/$(basename ${KEYRING})
+
+		gpg --import ${KEYRING}
+		gpg --list-keys
+		gpg --verify /tmp/Release.gpg /tmp/Release && break
+
+		export KEYRING="/usr/share/keyrings/univention-archive-key-ucs-$(( ${MAJOR} + ${i} ))x.gpg"
+		export OPTION="--force-check-gpg --include ${DEFAULT},${INCLUDE} --variant minbase --keyring ${KEYRING} --arch ${ARCH}"
+
+	done
+
+	if dpkg --compare-versions ${MAJOR}.${MINOR}-${PATCH} ge 5.2-0; then
+		export DEFAULT="${DEFAULT},usr-is-merged"
+		export OPTION="--force-check-gpg --include ${DEFAULT},${INCLUDE} --variant minbase --keyring ${KEYRING} --arch ${ARCH}"
+	fi
+
+	if mountpoint -q ${TARGET}-package-cache && ${DEBOOTSTRAP} --help | grep -E -q -- --cache-dir; then
+		export OPTION="${OPTION} --cache-dir ${TARGET}-package-cache"
+	fi
+
+	export BOOTSTRAP="${DEBOOTSTRAP} --verbose ${OPTION} ${SUITE} ${TARGET} ${MIRROR} ${SCRIPT}"
+
+	for i in $(seq 3); do
+		${BOOTSTRAP/verbose/download-only} && break || sleep 60
+	done
+
+	for i in $(seq 2); do
+		${BOOTSTRAP} && break || sleep 300
+	done
+
+	if dpkg --compare-versions ${MAJOR} ge 5; then
+		echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR} ${SUITE/ucs/errata} main" > \
+			${TARGET}/etc/apt/sources.list
+	else
+		echo -e "deb [arch=${ARCH}] ${MIRROR} ${SUITE} main\ndeb [arch=${ARCH}] ${MIRROR/${MAJOR}.${MINOR}-${PATCH}/component} ${MAJOR}.${MINOR}-${PATCH}-errata/all/\ndeb [arch=${ARCH}] ${MIRROR/${MAJOR}.${MINOR}-${PATCH}/component} ${MAJOR}.${MINOR}-${PATCH}-errata/${ARCH}/" > \
+			${TARGET}/etc/apt/sources.list
+	fi
+
+	test $(find ${TARGET} -type f -name "univention-archive-key-ucs-${MAJOR}x.gpg" | wc -l) -gt 0 && dpkg --compare-versions ${MAJOR}.${MINOR}-${PATCH} ge 4.4-5 || getKeys
+
+	LANG=C.UTF-8 chroot ${TARGET} /bin/bash -c 'debconf-set-selections <<< "debconf debconf/frontend select Noninteractive"'
+	LANG=C.UTF-8 chroot ${TARGET} /bin/bash -c 'apt-get -qq update'
+
+	find ${TARGET}/var/lib/apt/lists ${TARGET}/var/log \
+		-type f \
+			-delete
+	find ${TARGET}/var/cache/apt ${TARGET}/var/cache/debconf \
+		-type f -name '*.bin' -or -name '*.deb' -or -name '*.dat-old' \
+			-delete
+
+	if test ${#SLIM} -gt 0; then
+
+		find ${TARGET}/usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' \
+			-exec rm -fr {} \;
+
+	fi
+
+else
+	echo "ERROR the target version ${MAJOR}.${MINOR}-${PATCH} is out of syntax."
+	exit 1
+fi
+EOR
+
+FROM scratch AS build
+ARG TARGET=/var/cache/debootstrap
+COPY --from=bootstrap ${TARGET} /
 
 ARG APT="apt-get --no-install-recommends -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false -o Acquire::Max-FutureTime=31536000 -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1"
 
+# set major, minor and patch
+ARG MAJOR=0
+ARG MINOR=0
+ARG PATCH=0
+
 # init Acquire User Agent for container build
-ARG VERSION=0.0-0
 ARG CICD=PRODUCTION
 ARG UUID=00000000-0000-0000-0000-000000000000
-RUN echo "Acquire\n{\n\thttp\n\t\t{\n\t\t\tUser-Agent \"UCS CONTAINER,${CICD} BUILD - ${VERSION} - ${UUID} - ${UUID}\";\n\t\t};\n};" > /etc/apt/apt.conf.d/55user_agent
+RUN echo "Acquire\n{\n\thttp\n\t\t{\n\t\t\tUser-Agent \"UCS CONTAINER,${CICD} BUILD - ${MAJOR}.${MINOR}-${PATCH} - ${UUID} - ${UUID}\";\n\t\t};\n};" > /etc/apt/apt.conf.d/55user_agent
 
 # podman run and build quick and dirty fix ( Creating new user ... chfn: PAM: System error )
 # RUN $(which chfn) --full-name "ucs container root" root || ln --symbolic --force /bin/true $(which chfn)
@@ -47,8 +278,10 @@ RUN \
   ${APT} autoremove;                                              \
   ${APT} clean
 
-# set different repository online server by --build-arg MIRROR
-ARG MIRROR="https://updates.software-univention.de/"
+# set different repository online server by --build-arg UPDATES + PROTOCL
+ARG UPDATES="updates.software-univention.de"
+ARG PROTOCL="https://"
+ARG MIRROR="${PROTOCL}${UPDATES}"
 RUN printf "%s" ${MIRROR} > /etc/apt/mirror.url
 
 # get univention-container-mode
@@ -150,7 +383,8 @@ RUN \
   cp --verbose --remove-destination $(readlink ${unit}) ${unit}' \;
 
 # univention-container-mode default service unit(s)
-RUN bash -c "source /usr/lib/univention-container-mode/utils.sh;  \
+RUN /bin/bash -c "                                                \
+  source /usr/lib/univention-container-mode/utils.sh;             \
   UniventionContainerModeDockerfileInit"
 
 RUN systemctl mask --                                             \
@@ -173,24 +407,26 @@ RUN systemctl mask --                                             \
 
 FROM scratch
 
-COPY --from=BUILD / /
+COPY --from=build / /
 
-ARG DATE
-ARG COMMENT
-ARG VERSION
+ARG DATE="1970-01-01 00:00:00"
+
+ARG MAJOR=0
+ARG MINOR=0
+ARG PATCH=0
+
 LABEL maintainer="Univention GmbH <packages@univention.de>" \
   org.label-schema.build-date=${DATE} \
   org.label-schema.name="Univention Corporate Server (UCS) Container Mode" \
   org.label-schema.description="Self deploying container for running Univention Corporate Server (UCS) with role primary, backup, replica directory node or managed node." \
   org.label-schema.url="https://www.univention.com/products/ucs/" \
-  org.label-schema.vcs-ref=${VERSION} \
+  org.label-schema.vcs-ref=${MAJOR}.${MINOR}-${PATCH} \
   org.label-schema.vcs-url="https://github.com/univention/ucs-appliance-container" \
   org.label-schema.vendor="Univention GmbH" \
   org.label-schema.version="1.0.0-dev" \
   org.label-schema.schema-version="1.0" \
   org.label-schema.docker.cmd="docker run --detach --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:rw --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp:exec --restart unless-stopped --hostname dc.ucs.example --name dc.ucs.example univention/univention-corporate-server:latest" \
-  org.label-schema.docker.cmd.devel="docker run --env DEBUG=TRUE --detach --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:rw --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp:exec --restart unless-stopped --hostname dc.ucs.example --name dc.ucs.example univention/univention-corporate-server:latest" \
-  org.label-schema.docker.build.from=${COMMENT}
+  org.label-schema.docker.cmd.devel="docker run --env DEBUG=TRUE --detach --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:rw --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp:exec --restart unless-stopped --hostname dc.ucs.example --name dc.ucs.example univention/univention-corporate-server:latest"
 
 ENV DEBIAN_FRONTEND noninteractive
 
