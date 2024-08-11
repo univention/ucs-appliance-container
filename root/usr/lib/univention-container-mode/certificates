@@ -55,10 +55,20 @@ function getBase64() { # getBase64: IN(multiline <string(base64)>) => OUT(single
 }
 
 ## ucr shell
-eval "$(ucr shell hostname domainname ucs/server/sso/fqdn)"
+eval "$(ucr shell hostname domainname)"
 
 ## declare
 SSL=/etc/univention/ssl
+#
+sso=$(
+	ucr get ucs/server/sso/fqdn
+)
+#
+sso=${sso:-$(
+	ucr get keycloak/server/sso/fqdn
+)}
+#
+host=${hostname}.${domainname}
 
 debug "### START SCRIPT($(pwd)/$0) ###"
 ## generate certificate(s) container environment option
@@ -72,89 +82,98 @@ command -v ${json} >/dev/null 2>&1 || debug "### SKIPING SCRIPT($(pwd)/$0) COMMA
 command -v ${json} && {
 	JSON="${json} --raw-output"
 
-	[[ ${MINMAX:-MIN} =~ MIN ]] && cat <<EOF >${SSL}/certificates.json
-	{
-		"root":{
-			"certificate":{
-				"crt":"$(openssl x509 -outform PEM -in ${SSL}/ucsCA/CAcert.pem 2>/dev/null | getBase64)"
+
+	REG=${SSL}/ucsCA/CAreq.pem
+	CRT=${SSL}/ucsCA/CAcert.pem
+	CRL=${SSL}/ucsCA/crl/crl.pem
+	KEY=${SSL}/ucsCA/private/CAkey.pem
+
+	[[ -f ${KEY} ]] && egrep --quiet -- ^DEK-Info ${KEY} 2>/dev/null || \
+		debug "### SKIPING SCRIPT($(pwd)/$0) CERTIFICATE PRIVATE KEY(${KEY}) HAS NO DEK INFO HEADER OR FILE NOT FOUND ###"
+
+	[[ -f ${KEY} ]] && [[ ${MINMAX:-MIN} =~ MIN ]] && cat <<EOF >${SSL}/certificates.json
+{
+	"root":{
+		"certificate":{
+			"crt":"$(openssl x509 -outform PEM -in ${CRT} 2>/dev/null | getBase64)"
+		},
+		"rsa":{
+			"key":{
+				"private":"$(openssl rsa -outform PEM -passin pass:$(<${SSL}/password) -in ${KEY} 2>/dev/null | getBase64)",
+				"public":"$(openssl rsa -pubout -outform PEM -passin pass:$(<${SSL}/password) -in ${KEY} 2>/dev/null | getBase64)"
 			},
-			"rsa":{
-				"key":{
-					"private":"$(openssl rsa -outform PEM -passin pass:$(<${SSL}/password) -in ${SSL}/ucsCA/private/CAkey.pem 2>/dev/null | getBase64)",
-					"public":"$(openssl rsa -pubout -outform PEM -passin pass:$(<${SSL}/password) -in ${SSL}/ucsCA/private/CAkey.pem 2>/dev/null | getBase64)"
-				},
-				"encryption":{
-					"signkey":"$(getBase64 ${SSL}/ucsCA/private/CAkey.pem)",
-					"encrypted":$(awk '/^Proc-Type/{ split($2,TYPE,","); if ( TYPE[2]=="ENCRYPTED" ) { printf "true" } }' ${SSL}/ucsCA/private/CAkey.pem),
-					"version":$(awk '/^Proc-Type/{ split($2,TYPE,","); printf TYPE[1] }' ${SSL}/ucsCA/private/CAkey.pem),
-					"algorithm":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[1] }' ${SSL}/ucsCA/private/CAkey.pem)",
-					"password":"$(tr --delete '\n' <${SSL}/password)",
-					"salt":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[2] }' ${SSL}/ucsCA/private/CAkey.pem)"
-				}
+			"encryption":{
+				"signkey":"$(getBase64 ${KEY})",
+				"encrypted":$(awk '/^Proc-Type/{ split($2,TYPE,","); if ( TYPE[2]=="ENCRYPTED" ) { printf "true" } }' ${KEY}),
+				"version":$(awk '/^Proc-Type/{ split($2,TYPE,","); printf TYPE[1] }' ${KEY}),
+				"algorithm":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[1] }' ${KEY})",
+				"password":"$(tr --delete '\n' <${SSL}/password)",
+				"salt":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[2] }' ${KEY})"
 			}
 		}
 	}
+}
 EOF
 
-	[[ ${MINMAX:-} =~ MAX ]] && cat <<EOF >${SSL}/certificates.json
-	{
-		"root":{
-			"certificate":{
-				"req":"$(openssl req -outform PEM -in ${SSL}/ucsCA/CAreq.pem 2>/dev/null | getBase64)",
-				"crt":"$(openssl x509 -outform PEM -in ${SSL}/ucsCA/CAcert.pem 2>/dev/null | getBase64)",
-				"crl":"$(openssl crl -outform PEM -in ${SSL}/ucsCA/crl/crl.pem 2>/dev/null | getBase64)"
-			},
-			"rsa":{
-				"key":{
-					"private":"$(openssl rsa -outform PEM -passin pass:$(<${SSL}/password) -in ${SSL}/ucsCA/private/CAkey.pem 2>/dev/null | getBase64)",
-					"public":"$(openssl rsa -pubout -outform PEM -passin pass:$(<${SSL}/password) -in ${SSL}/ucsCA/private/CAkey.pem 2>/dev/null | getBase64)"
-				},
-				"encryption":{
-					"signkey":"$(getBase64 ${SSL}/ucsCA/private/CAkey.pem)",
-					"encrypted":$(awk '/^Proc-Type/{ split($2,TYPE,","); if ( TYPE[2]=="ENCRYPTED" ) { printf "true" } }' ${SSL}/ucsCA/private/CAkey.pem),
-					"version":$(awk '/^Proc-Type/{ split($2,TYPE,","); printf TYPE[1] }' ${SSL}/ucsCA/private/CAkey.pem),
-					"algorithm":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[1] }' ${SSL}/ucsCA/private/CAkey.pem)",
-					"password":"$(tr --delete '\n' <${SSL}/password)",
-					"salt":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[2] }' ${SSL}/ucsCA/private/CAkey.pem)"
-				}
-			}
+	[[ -f ${KEY} ]] && [[ ${MINMAX:-} =~ MAX ]] && cat <<EOF >${SSL}/certificates.json
+{
+	"root":{
+		"certificate":{
+			"req":"$(openssl req -outform PEM -in ${REG} 2>/dev/null | getBase64)",
+			"crt":"$(openssl x509 -outform PEM -in ${CRT} 2>/dev/null | getBase64)",
+			"crl":"$(openssl crl -outform PEM -in ${CRL} 2>/dev/null | getBase64)"
 		},
-		"host":{
-			"fqdn":"${hostname}.${domainname}",
-			"certificate":{
-				"req":"$(openssl req -outform PEM -in ${SSL}/${hostname}.${domainname}/req.pem 2>/dev/null | getBase64)",
-				"crt":"$(openssl x509 -outform PEM -in ${SSL}/${hostname}.${domainname}/cert.pem 2>/dev/null | getBase64)"
+		"rsa":{
+			"key":{
+				"private":"$(openssl rsa -outform PEM -passin pass:$(<${SSL}/password) -in ${KEY} 2>/dev/null | getBase64)",
+				"public":"$(openssl rsa -pubout -outform PEM -passin pass:$(<${SSL}/password) -in ${KEY} 2>/dev/null | getBase64)"
 			},
-			"rsa":{
-				"key":{
-					"private":"$(openssl rsa -outform PEM -in ${SSL}/${hostname}.${domainname}/private.key 2>/dev/null | getBase64)",
-					"public":"$(openssl rsa -pubout -outform PEM -in ${SSL}/${hostname}.${domainname}/private.key 2>/dev/null | getBase64)"
-				}
+			"encryption":{
+				"signkey":"$(getBase64 ${KEY})",
+				"encrypted":$(awk '/^Proc-Type/{ split($2,TYPE,","); if ( TYPE[2]=="ENCRYPTED" ) { printf "true" } }' ${KEY}),
+				"version":$(awk '/^Proc-Type/{ split($2,TYPE,","); printf TYPE[1] }' ${KEY}),
+				"algorithm":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[1] }' ${KEY})",
+				"password":"$(tr --delete '\n' <${SSL}/password)",
+				"salt":"$(awk '/^DEK-Info/{ split($2,DEK,","); printf DEK[2] }' ${KEY})"
 			}
+		}
+	},
+	"host":{
+		"fqdn":"${host}",
+		"certificate":{
+			"req":"$(openssl req -outform PEM -in ${SSL}/${host}/req.pem 2>/dev/null | getBase64)",
+			"crt":"$(openssl x509 -outform PEM -in ${SSL}/${host}/cert.pem 2>/dev/null | getBase64)"
 		},
-		"sso":{
-			"fqdn":"${ucs_server_sso_fqdn}",
-			"certificate":{
-				"req":"$(openssl req -outform PEM -in ${SSL}/${ucs_server_sso_fqdn}/req.pem 2>/dev/null | getBase64)",
-				"crt":"$(openssl x509 -outform PEM -in ${SSL}/${ucs_server_sso_fqdn}/cert.pem 2>/dev/null | getBase64)"
-			},
-			"rsa":{
-				"key":{
-					"private":"$(openssl rsa -outform PEM -in ${SSL}/${ucs_server_sso_fqdn}/private.key 2>/dev/null | getBase64)",
-					"public":"$(openssl rsa -pubout -outform PEM -in ${SSL}/${ucs_server_sso_fqdn}/private.key 2>/dev/null | getBase64)"
-				}
+		"rsa":{
+			"key":{
+				"private":"$(openssl rsa -outform PEM -in ${SSL}/${host}/private.key 2>/dev/null | getBase64)",
+				"public":"$(openssl rsa -pubout -outform PEM -in ${SSL}/${host}/private.key 2>/dev/null | getBase64)"
+			}
+		}
+	},
+	"sso":{
+		"fqdn":"${sso}",
+		"certificate":{
+			"req":"$(openssl req -outform PEM -in ${SSL}/${sso}/req.pem 2>/dev/null | getBase64)",
+			"crt":"$(openssl x509 -outform PEM -in ${SSL}/${sso}/cert.pem 2>/dev/null | getBase64)"
+		},
+		"rsa":{
+			"key":{
+				"private":"$(openssl rsa -outform PEM -in ${SSL}/${sso}/private.key 2>/dev/null | getBase64)",
+				"public":"$(openssl rsa -pubout -outform PEM -in ${SSL}/${sso}/private.key 2>/dev/null | getBase64)"
 			}
 		}
 	}
+}
 EOF
 
 	# show json string
-	${JSON} . ${SSL}/certificates.json
+	[[ -f ${SSL}/certificates.json ]] && ${JSON} . ${SSL}/certificates.json
 
 	# show container option environment string
 	[[ ${MINMAX:-OUTPUT} =~ OUTPUT ]] && echo -e "USE:\n\t/bin/bash $0 [--minimum|--maximum]" || {
 		echo
-		echo --env certificates=\'$(${JSON} --compact-output . ${SSL}/certificates.json)\'
+		echo --env certificates=\'$(${JSON} --compact-output . ${SSL}/certificates.json 2>/dev/null)\'
 		echo
 	}
 
@@ -170,7 +189,6 @@ debug "### STOPP SCRIPT($(pwd)/$0) ###"
 
 ## cleanup
 unset \
-	hostname domainname \
-	ucs_server_sso_fqdn
+	hostname domainname
 
 debug "### CLEAN SCRIPT($(pwd)/$0) ###"

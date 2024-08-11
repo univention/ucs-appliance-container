@@ -137,7 +137,9 @@ command -v ${json} >/dev/null 2>&1 && command -v ${rsync} >/dev/null 2>&1 && com
 		}
 		[[ -d ${restore}/certificates ]] && {
 			# save local certificates
-			# /bin/bash /usr/lib/univention-container-mode/certificates --maximum >/dev/null 2>&1 &&
+			/bin/bash /usr/lib/univention-container-mode/certificates \
+				--maximum >/dev/null 2>&1 ||
+					rm --force /etc/univention/ssl/certificates.json
 			${RSYNC} /etc/univention/ssl/ ${restore}/certificates
 		}
 		[[ -d ${restore}/connectors ]] && {
