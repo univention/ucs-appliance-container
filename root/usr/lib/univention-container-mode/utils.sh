@@ -741,6 +741,8 @@ function UniventionContainerModeSlimifyCheck() { # UniventionContainerModeSlimif
 #
 function UniventionContainerModeSlimify() { # UniventionContainerModeSlimify: void
 	UniventionContainerModeSlimifyCheck || return 0 && {
+		find /usr/share/doc -mindepth 2 -maxdepth 2 ! -name copyright \
+			-exec rm --recursive --force {} \;
 		find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' \
 			-exec rm --recursive --force {} \;
 		rm --recursive --force \
@@ -749,11 +751,7 @@ function UniventionContainerModeSlimify() { # UniventionContainerModeSlimify: vo
 			/usr/share/linda \
 			/usr/share/lintian \
 			/usr/share/man \
-			/var/cache/man || /bin/true
-		find /usr/share/doc -depth -type f ! -name copyright \
-			-delete
-		find /usr/share/doc -depth -empty \
-			-delete
+			/var/cache/man
 		find / -regex '^.*\(__pycache__\|\.py[co]\)$' \
 			-delete
 	}

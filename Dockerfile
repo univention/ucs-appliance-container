@@ -103,28 +103,15 @@ RUN \
 
 # checking for slimify and/or clean up ...
 RUN \
-  test -f ${SLIMIFY} && rm --force --recursive                    \
-  /usr/share/groff                                                \
-  /usr/share/info                                                 \
-  /usr/share/linda                                                \
-  /usr/share/lintian                                              \
-  /usr/share/man                                                  \
-  /var/cache/man;                                                 \
-  test -f ${SLIMIFY} &&                                           \
-  find /usr/share/doc -depth -type f ! -name copyright -delete;   \
-  test -f ${SLIMIFY} &&                                           \
-  find / -regex '^.*\(__pycache__\|\.py[co]\)$' -delete;          \
-  test -f ${SLIMIFY} &&                                           \
-  find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*'    \
-  -exec rm --force --verbose --recursive {} \;;                   \
-  find /usr/share/doc -depth -empty -delete
-RUN \
   test -f ${SLIMIFY} || find /etc/apt/apt.conf.d                  \
   -type f -name 'univention-container-mode*'                      \
   -exec rm --force --verbose {} \;;                               \
   test -f ${SLIMIFY} || find $(dirname ${SLIMIFY})                \
   -type f -name 'univention-container-mode*'                      \
   -exec rm --force --verbose {} \;
+RUN /bin/bash -c "                                                \
+  source /usr/lib/univention-container-mode/utils.sh;             \
+  UniventionContainerModeSlimify"
 RUN rm --force --verbose ${SLIMIFY}
 
 # set univention-container-mode permission for systemd
