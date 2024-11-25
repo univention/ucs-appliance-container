@@ -163,17 +163,30 @@ if echo "${MAJOR}.${MINOR}-${PATCH}" | grep -E -q -- "^[[:digit:]]{1,3}.[[:digit
 	wget -q -P /tmp/ ${MIRROR}/dists/${SUITE}/Release
 	wget -q -P /tmp/ ${MIRROR}/dists/${SUITE}/Release.gpg
 
-	for i in $(seq 3); do
-		test -e ${KEYRING} || curl -sSf -o ${KEYRING} -L ${REPOSITORY}/$(basename ${KEYRING})
+	for i in $(seq 9); do
+		test -e ${KEYRING} || curl -sSf -o ${KEYRING} -L ${REPOSITORY}/$(basename ${KEYRING}) || \
+			curl -sSf -o ${KEYRING} -L ${REPOSITORY/updates-test./updates.}/$(basename ${KEYRING})
 
 		gpg --import ${KEYRING}
 		gpg --list-keys
 		gpg --verify /tmp/Release.gpg /tmp/Release && break
 
-		export KEYRING="/usr/share/keyrings/univention-archive-key-ucs-$(( ${MAJOR} + ${i} ))x.gpg"
+		if dpkg --compare-versions ${MAJOR}.${MINOR}-${PATCH} ge 5.1-0; then
+			export KEYRING="/usr/share/keyrings/univention-archive-key-ucs-${MAJOR}$(( ${MINOR} + ${i} - 1 ))x.gpg"
+		else
+			export KEYRING="/usr/share/keyrings/univention-archive-key-ucs-$(( ${MAJOR} + ${i} ))x.gpg"
+		fi
+
 		export OPTION="--force-check-gpg --include ${DEFAULT},${INCLUDE} --variant minbase --keyring ${KEYRING} --arch ${ARCH}"
 
 	done
+
+	if gpg --verify /tmp/Release.gpg /tmp/Release; then
+		gpg --show-keys --with-fingerprint ${KEYRING} 2>/dev/null || gpg --fingerprint 2>/dev/null || /bin/true
+	else
+		echo "ERROR the target version ${MAJOR}.${MINOR}-${PATCH} on mirror ${MIRROR} has a missing gpg public key to verify."
+		exit 1
+	fi
 
 	if dpkg --compare-versions ${MAJOR}.${MINOR}-${PATCH} ge 5.2-0; then
 		export DEFAULT="${DEFAULT},usr-is-merged"
@@ -202,7 +215,7 @@ if echo "${MAJOR}.${MINOR}-${PATCH}" | grep -E -q -- "^[[:digit:]]{1,3}.[[:digit
 			${TARGET}/etc/apt/sources.list
 	fi
 
-	test $(find ${TARGET} -type f -name "univention-archive-key-ucs-${MAJOR}x.gpg" | wc -l) -gt 0 && dpkg --compare-versions ${MAJOR}.${MINOR}-${PATCH} ge 4.4-5 || getKeys
+	test $(find ${TARGET} -type f -name "univention-archive-key-ucs-${MAJOR}*.gpg" | wc -l) -gt 0 && dpkg --compare-versions ${MAJOR}.${MINOR}-${PATCH} ge 4.4-5 || getKeys
 
 	LANG=C.UTF-8 chroot ${TARGET} /bin/bash -c 'debconf-set-selections <<< "debconf debconf/frontend select Noninteractive"'
 	LANG=C.UTF-8 chroot ${TARGET} /bin/bash -c 'apt-get -qq update'

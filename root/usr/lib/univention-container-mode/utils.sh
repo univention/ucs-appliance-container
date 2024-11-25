@@ -336,10 +336,16 @@ function UniventionAptSourcesList() { # UniventionAptSourcesList: IN(major,minor
 
 	[[ -f /etc/apt/mirror.url ]] && mirror=$(tr --delete '\n' </etc/apt/mirror.url) || mirror="https://updates.software-univention.de"
 
-	for i in {0..1}; do # check and/or download new gpg keys ( don't forget the next major )
-		keyring="univention-archive-key-ucs-$((${major} + ${i}))x.gpg"
-		[[ $(find /{etc/apt/trusted.gpg.d,usr/share/keyrings} -type f -name ${keyring} | wc -l) -gt 0 ]] ||
-			python3 -c "import urllib.request; urllib.request.urlretrieve('${mirror}/${keyring}', '/etc/apt/trusted.gpg.d/${keyring}')" >/dev/null 2>&1 || /bin/true
+	for i in {0..2}; do # check and/or download new gpg keys ( don't forget the next major / minor )
+		if [[ ${major}${minor} -ge 51 ]]; then
+			keyring="univention-archive-key-ucs-${major}$((${minor} + ${i}))x.gpg"
+		else
+			keyring="univention-archive-key-ucs-$((${major} + ${i}))x.gpg"
+		fi
+		if [[ $(find /{etc/apt/trusted.gpg.d,usr/share/keyrings} -type f -name ${keyring} | wc -l) -eq 0 ]]; then
+			python3 -c "import urllib.request; urllib.request.urlretrieve('${mirror}/${keyring}',                        '/etc/apt/trusted.gpg.d/${keyring}')" >/dev/null 2>&1 && continue ||
+			python3 -c "import urllib.request; urllib.request.urlretrieve('${mirror/updates-test./updates.}/${keyring}', '/etc/apt/trusted.gpg.d/${keyring}')" >/dev/null 2>&1 || /bin/true
+		fi
 	done
 
 	[[ ${major} -ge 5 ]] || mirror="${mirror}/${major}.${minor}/maintained/${major}.${minor}-${patch}"
