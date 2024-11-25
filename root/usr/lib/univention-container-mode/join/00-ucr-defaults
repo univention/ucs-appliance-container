@@ -103,9 +103,10 @@ timedatectl set-timezone ${timezone:-UTC} >/dev/null 2>&1 && timedatectl --no-pa
 
 	ln --symbolic --force /usr/share/zoneinfo/${zone} \
 		/etc/localtime
-
-	dpkg-reconfigure -f noninteractive tzdata || /bin/true
 }
+#
+# set timezone data
+dpkg-reconfigure -f noninteractive tzdata || /bin/true
 #
 # set xorg/keyboard
 ucrchanges+=("xorg/keyboard/options/XkbLayout=$(

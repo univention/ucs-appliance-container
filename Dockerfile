@@ -320,14 +320,9 @@ RUN \
 
 RUN find /var/log -type f -delete
 RUN \
-  find                                                            \
-  /etc                                                            \
-  -maxdepth 1 -type f                                             \
-  -name 'localtime'   -or                                         \
-  -name 'hostname'    -or                                         \
-  -name 'shadow'      -or                                         \
-  -name 'locale.conf' -or                                         \
-  -name 'machine-id'  -delete || /bin/true
+  for file in                                                     \
+    localtime timezone hostname shadow locale.conf machine-id;    \
+  do rm --force /etc/${file}; done
 
 RUN \
   rm --force /var/lib/dbus/machine-id;                            \
