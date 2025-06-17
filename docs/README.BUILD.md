@@ -16,7 +16,7 @@ STDOUT ( timeing )
 ```
 ## Build a deployment container image with docker ```( optionally with time )```
 ```bash
-MAJOR=5; MINOR=2; PATCH=1; IMAGE="univention/univention-corporate-server"; TAG="latest"; \
+MAJOR=5; MINOR=2; PATCH=2; IMAGE="univention/univention-corporate-server"; TAG="latest"; \
   time docker build \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
     --build-arg MAJOR=${MAJOR} \
@@ -39,7 +39,7 @@ docker image inspect univention/univention-corporate-server:latest
 ```
 ## Build a deployment container image with podman ```( optionally with time )```
 ```bash
-MAJOR=5; MINOR=2; PATCH=1; IMAGE="univention/univention-corporate-server"; TAG="latest"; \
+MAJOR=5; MINOR=2; PATCH=2; IMAGE="univention/univention-corporate-server"; TAG="latest"; \
   time podman build \
     --format docker \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
