@@ -218,7 +218,7 @@ if echo "${MAJOR}.${MINOR}-${PATCH}" | grep -E -q -- "^[[:digit:]]{1,3}.[[:digit
 	test $(find ${TARGET} -type f -name "univention-archive-key-ucs-${MAJOR}*.gpg" | wc -l) -gt 0 && dpkg --compare-versions ${MAJOR}.${MINOR}-${PATCH} ge 4.4-5 || getKeys
 
 	LANG=C.UTF-8 chroot ${TARGET} /bin/bash -c 'debconf-set-selections <<< "debconf debconf/frontend select Noninteractive"'
-	LANG=C.UTF-8 chroot ${TARGET} /bin/bash -c 'apt-get -qq update'
+	LANG=C.UTF-8 chroot ${TARGET} /bin/bash -c 'timeout 90 apt-get -qq update' || /bin/true
 
 	find ${TARGET}/var/lib/apt/lists ${TARGET}/var/log \
 		-type f \
