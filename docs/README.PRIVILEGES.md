@@ -16,6 +16,12 @@ STDOUT ( timeing )
 ```
 
 ## Container privileges
+For Debian 13 (trixie) or Docker since version 28.0.0, check your runtime conditions. We need no longer cgroup version one ```( CGroupsV1 )```.
+```bash
+test $(docker info --format '{{.CgroupVersion}}') = 2 || echo "CGroupsV$(docker info --format '{{.CgroupVersion}}') isn't supported. Set your system to CGroupsV2!"
+test $(docker info --format '{{.CgroupDriver}}' ) = systemd || echo "CGroupsDriver $(docker info --format '{{.CgroupDriver}}') isn't recommended. You can configure your runtime option to < dockerd --exec-opt native.cgroupdriver=systemd > ( https://docs.docker.com/engine/reference/commandline/dockerd/#docker-runtime-execution-options )"
+```
+
 There are four options to deploy, choose one of them. If you are unsure, you can start with option C. But make sure to later test A and B for security reasons! If your system is running podman based on SELinux, you can have a look here [Red Hat solution 3387631](https://access.redhat.com/solutions/3387631).
 ```bash
 sudo setsebool -P container_manage_cgroup true
@@ -37,6 +43,7 @@ And finaly, depend your Docker or Podman version, the option ( ```--cap-add CAP_
 
 ### (option -- A) container with minimal privileg excluding [Docker in Docker](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) and excluding all types of packages that need higher system privileges.
 Docker >= 25.0.0[^1], mount the control groups read/write.
+Docker >= 28.0.0[^2], mount the control groups read/write and run the container in the Docker host's cgroup namespace.
 ```bash
 docker run \
   --detach \
@@ -56,7 +63,7 @@ podman run \
     univention/univention-corporate-server
 ```
 
-Podman >= 3.1.0[^2].
+Podman >= 3.1.0[^3].
 ```bash
 podman run \
   --detach \
@@ -70,6 +77,7 @@ This will likely generate a lot of warnings and errors in systemd journal ```( j
 
 ### (option -- B) container privileg excluding [Docker in Docker](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) but with most univention packages such as common internet file system ( CIFS ).
 Docker >= 25.0.0[^1], mount the control groups read/write.
+Docker >= 28.0.0[^2], mount the control groups read/write and run the container in the Docker host's cgroup namespace.
 ```bash
 docker run \
   --detach \
@@ -95,7 +103,7 @@ podman run \
     univention/univention-corporate-server
 ```
 
-Podman >= 3.1.0[^2].
+Podman >= 3.1.0[^3].
 ```bash
 podman run \
   --detach \
@@ -114,6 +122,7 @@ Also these container security options for [apparmor](https://docs.docker.com/eng
 
 ### (option -- C) container has full privileges including [Docker in Docker](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) and all univention packages such as univention app center.
 Docker >= 25.0.0[^1], mount the control groups read/write.
+Docker >= 28.0.0[^2], mount the control groups read/write and run the container in the Docker host's cgroup namespace.
 ```bash
 docker run \
   --detach \
@@ -123,7 +132,7 @@ docker run \
     univention/univention-corporate-server
 ```
 
-Podman >= 3.1.0[^2].
+Podman >= 3.1.0[^3].
 ```bash
 podman run \
   --detach \
@@ -140,4 +149,6 @@ With (option -- C) you has full privileges to use [Docker in Docker](https://doc
 
 [^1]: Update for Docker >= 25.0.0: It is recommended to mount the control groups with read/write permission ( ``` docker run ... --volume /sys/fs/cgroup:/sys/fs/cgroup:rw ... ``` ).
 
-[^2]: Update for Podman >= 3.1.0 and/or a fresh installed fedora >= 37 (container runs from root user), maybe you don't need to fix your system for CgroupsV1. [Run Podman with systemd support ... podman run ... --systemd true](https://docs.podman.io/en/latest/markdown/podman-run.1.html#systemd-true-false-always).
+[^2]: Update for Docker >= 28.0.0: It is recommended to mount the control groups with read/write permission ( ``` docker run ... --cgroupns host ... --volume /sys/fs/cgroup:/sys/fs/cgroup:rw ... ``` ) and run the container in the Docker host's cgroup namespace.
+
+[^3]: Update for Podman >= 3.1.0 and/or a fresh installed fedora >= 37 (container runs from root user), maybe you don't need to fix your system for CgroupsV1. [Run Podman with systemd support ... podman run ... --systemd true](https://docs.podman.io/en/latest/markdown/podman-run.1.html#systemd-true-false-always).

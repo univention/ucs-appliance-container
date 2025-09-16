@@ -143,6 +143,7 @@ Note: Depend your Docker version, the option ( ```--cap-add CAP_MKNOD``` ) may n
 NETWORK=ucs; FQDN=dc.${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=rootCA.pass; \
   docker run \
     --detach \
+    --cgroupns host \
     --security-opt apparmor=univention-corporate-server \
     --cap-add SYS_ADMIN \
     --cap-add CAP_MKNOD \
@@ -173,6 +174,7 @@ NETWORK=ucs; FQDN=dc.${NETWORK}.example; CERT=rootCA.crt; SIGN=rootCA.key; PASS=
   docker run \
     --detach \
     --privileged \
+    --cgroupns host \
     --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
     --volume /lib/modules:/lib/modules:ro \
     --tmpfs /run \

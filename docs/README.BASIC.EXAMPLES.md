@@ -26,6 +26,7 @@ Read more about [Reserved Top Level DNS Names](https://tools.ietf.org/html/rfc26
 FQDN=dc.ucs.example; \
   docker run \
     --detach \
+    --cgroupns host \
     --cap-add SYS_ADMIN \
     --cap-add CAP_MKNOD \
     --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
@@ -85,6 +86,7 @@ PASSWORD FOR DOMAIN(ucs.example) ON HOST(dc) WITH ROLE(domaincontroller_master):
 MASTER=dc.ucs.example; FQDN=s${MASTER}; \
   docker run \
     --detach \
+    --cgroupns host \
     --cap-add SYS_ADMIN \
     --cap-add CAP_MKNOD \
     --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
@@ -147,6 +149,7 @@ PASSWORD FOR HOST(sdc.ucs.example) WITH ROLE(domaincontroller_slave):
 MASTER=dc.ucs.example; FQDN=b${MASTER}; \
   docker run \
     --detach \
+    --cgroupns host \
     --cap-add SYS_ADMIN \
     --cap-add CAP_MKNOD \
     --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
@@ -209,6 +212,7 @@ PASSWORD FOR HOST(bdc.ucs.example) WITH ROLE(domaincontroller_backup):
 MASTER=dc.ucs.example; FQDN=m${MASTER}; \
   docker run \
     --detach \
+    --cgroupns host \
     --cap-add SYS_ADMIN \
     --cap-add CAP_MKNOD \
     --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
