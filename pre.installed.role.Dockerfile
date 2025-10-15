@@ -38,6 +38,10 @@ RUN /bin/bash -c '                                                \
   sed -i "s/BUILD/BUILD-PRE-INSTALLED-ROLE,${role^^}/g"           \
   /etc/apt/apt.conf.d/55user_agent'
 
+# fix slapd for any directory node, don't try to start this service unit while docker build
+RUN test ${role} = member ||                                      \
+  ln --symbolic --force /bin/true /etc/init.d/slapd
+
 # pre installed role=${role}, add non-container app(s) and fix missing /etc/apt/mirror.url
 RUN --mount=type=cache,target=/var/cache/apt/archives             \
   --mount=type=cache,target=/var/cache/univention-appcenter       \
