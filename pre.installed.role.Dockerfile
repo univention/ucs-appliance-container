@@ -1,6 +1,6 @@
 ARG IMAGE=univention/univention-corporate-server
 ARG TAG=latest
-FROM ${IMAGE}:${TAG} AS BUILD
+FROM ${IMAGE}:${TAG} AS build
 
 # init Acquire User Agent for container build
 ARG VERSION=0.0-0
@@ -31,7 +31,7 @@ ARG FILES='00-aA-DEPENDENCIES-Aa-00 \
   50-setup-system-container-role-common \
   50-setup-system-role 99-system-cleanup'
 
-ENV role ${role}
+ENV role=${role}
 
 # (re)init Acquire User Agent for container build with pre installed role=${role^^}
 RUN /bin/bash -c '                                                \
@@ -155,7 +155,7 @@ RUN echo "Acquire\n{\n\thttp\n\t\t{\n\t\t\tUser-Agent \"UCS CONTAINER,${CICD} BU
 
 FROM scratch
 
-COPY --from=BUILD / /
+COPY --from=build / /
 
 ARG DATE
 ARG role=master
@@ -175,17 +175,17 @@ LABEL maintainer="Univention GmbH <packages@univention.de>" \
   org.label-schema.docker.cmd="docker run --detach --cgroupns host --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:rw --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp:exec --restart unless-stopped --hostname ${NAME}.ucs.example --name ${NAME}.ucs.example univention/univention-corporate-server-${role}:latest" \
   org.label-schema.docker.cmd.devel="docker run --env DEBUG=TRUE --detach --cgroupns host --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:rw --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp:exec --restart unless-stopped --hostname ${NAME}.ucs.example --name ${NAME}.ucs.example univention/univention-corporate-server-${role}:latest"
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # enable join/99-zZ-UPGRADE-LATEST-Zz-99 and skipp the default join/00-aA-APT-SOURCES-LIST-Aa-00
-ENV LATEST SKIPP
+ENV LATEST=SKIPP
 
 # set the pre installed role=${role} as default environment key=value pair
-ENV role ${role}
+ENV role=${role}
 
 # https://www.freedesktop.org/software/systemd/man/systemd-detect-virt.html
 # https://www.freedesktop.org/software/systemd/man/systemd.unit.html#ConditionVirtualization=
-ENV container docker
+ENV container=docker
 
 # HTTP(S)   (ucr search --key --brief security/packetfilter/package/univention-apache)
 EXPOSE 80/tcp 443/tcp

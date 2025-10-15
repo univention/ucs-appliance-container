@@ -436,11 +436,11 @@ LABEL maintainer="Univention GmbH <packages@univention.de>" \
   org.label-schema.docker.cmd="docker run --detach --cgroupns host --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:rw --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp:exec --restart unless-stopped --hostname dc.ucs.example --name dc.ucs.example univention/univention-corporate-server:latest" \
   org.label-schema.docker.cmd.devel="docker run --env DEBUG=TRUE --detach --cgroupns host --cap-add SYS_ADMIN --volume /sys/fs/cgroup:/sys/fs/cgroup:rw --cap-add SYS_MODULE --volume /lib/modules:/lib/modules:ro --cap-add SYS_TIME --tmpfs /run/lock --tmpfs /run --tmpfs /tmp:exec --restart unless-stopped --hostname dc.ucs.example --name dc.ucs.example univention/univention-corporate-server:latest"
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # https://www.freedesktop.org/software/systemd/man/systemd-detect-virt.html
 # https://www.freedesktop.org/software/systemd/man/systemd.unit.html#ConditionVirtualization=
-ENV container docker
+ENV container=docker
 
 # HTTP(S)   (ucr search --key --brief security/packetfilter/package/univention-apache)
 EXPOSE 80/tcp 443/tcp
