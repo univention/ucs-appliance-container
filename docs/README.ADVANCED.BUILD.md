@@ -16,7 +16,7 @@ STDOUT ( timeing )
 ```
 ## Build a deployment container image with different repository server using docker build ```( optionally with time )```
 ```bash
-MAJOR=5; MINOR=2; PATCH=3; IMAGE="univention/univention-corporate-server"; TAG="test"; UPDATES="updates-test.software-univention.de"; \
+MAJOR=5; MINOR=2; PATCH=4; IMAGE="univention/univention-corporate-server"; TAG="test"; UPDATES="updates-test.software-univention.de"; \
   time docker build \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
     --build-arg UPDATES=${UPDATES} \
@@ -40,7 +40,7 @@ docker image inspect univention/univention-corporate-server:test
 ```
 ## Build a deployment container image with different repository server using podman build ```( optionally with time )```
 ```bash
-MAJOR=5; MINOR=2; PATCH=3; IMAGE="univention/univention-corporate-server"; TAG="test"; UPDATES="updates-test.software-univention.de"; \
+MAJOR=5; MINOR=2; PATCH=4; IMAGE="univention/univention-corporate-server"; TAG="test"; UPDATES="updates-test.software-univention.de"; \
   time podman build \
     --format docker \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
@@ -65,7 +65,7 @@ podman image inspect univention/univention-corporate-server:test
 ```
 ## Build a deployment container image as a slimify variant using docker build ```( optionally with time )```
 ```bash
-MAJOR=5; MINOR=2; PATCH=3; IMAGE="univention/univention-corporate-server"; TAG="test"; SLIM="slim"; UPDATES="updates-test.software-univention.de"; \
+MAJOR=5; MINOR=2; PATCH=4; IMAGE="univention/univention-corporate-server"; TAG="test"; SLIM="slim"; UPDATES="updates-test.software-univention.de"; \
   time docker build \
     --build-arg SLIM=${SLIM} \
     --build-arg DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
@@ -90,7 +90,7 @@ docker image inspect univention/univention-corporate-server:test-slim
 ```
 ## Build a deployment container image as a slimify variant using podman build ```( optionally with time )```
 ```bash
-MAJOR=5; MINOR=2; PATCH=3; IMAGE="univention/univention-corporate-server"; TAG="test"; SLIM="slim"; UPDATES="updates-test.software-univention.de"; \
+MAJOR=5; MINOR=2; PATCH=4; IMAGE="univention/univention-corporate-server"; TAG="test"; SLIM="slim"; UPDATES="updates-test.software-univention.de"; \
   time podman build \
     --format docker \
     --build-arg SLIM=${SLIM} \
