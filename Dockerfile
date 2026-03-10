@@ -57,7 +57,7 @@ status = 'maintained' if not 'test' in url else 'development'
 #                    "patchlevels": [
 #                        {
 #                            "patchlevel": Number,
-#                            "status": String("development", "maintained", "end-of-life")
+#                            "status": String("development", "maintained", "end-of-life", "extended")
 #                        }
 #                    ]
 #                }
