@@ -389,6 +389,14 @@ RUN \
   -type l -name univention-container-mode*                        \
   -exec /bin/bash -c 'unit={}; cd $(dirname ${unit});             \
   cp --verbose --remove-destination $(readlink ${unit}) ${unit}' \;
+RUN \
+  find                                                            \
+  /lib/systemd/system                                             \
+  -type l -name slapd*                                            \
+  -exec /bin/bash -c 'unit={}; cd $(dirname ${unit});             \
+  cp --verbose --remove-destination $(readlink ${unit}) ${unit}' \;
+RUN systemctl mask --                                             \
+  slapd-on-failure-fallback.service
 
 # univention-container-mode default service unit(s)
 RUN /bin/bash -c "                                                \

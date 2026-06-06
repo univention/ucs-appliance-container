@@ -40,7 +40,7 @@ RUN /bin/bash -c '                                                \
 
 # fix slapd for any directory node, don't try to start this service unit while docker build
 RUN test ${role} = member ||                                      \
-  ln --symbolic --force /bin/true /etc/init.d/slapd
+  ln --symbolic --force /bin/true /etc/init.d/slapd || /bin/true
 
 # pre installed role=${role}, add non-container app(s) and fix missing /etc/apt/mirror.url
 RUN --mount=type=cache,target=/var/cache/apt/archives             \
