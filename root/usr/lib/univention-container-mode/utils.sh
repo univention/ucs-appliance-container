@@ -167,14 +167,14 @@ UniventionFixServiceUnitNamespace() { # UniventionFixServiceUnitNamespace: void
 		)" '+%F %T'
 	)
 	# failed service unit(s) to fix nicely or forced
-	#  => Main process exited ... NAMESPACE
+	#  => Main process exited ... CREDENTIALS or NAMESPACE
 	#  => Attaching egress BPF ... failed
 	local filter='' units=(${@} $(
-		journalctl --full --all --no-pager --no-hostname --since "${since}" | awk '/^.*systemd\[1\]\:.*(NAMESPACE|BPF.*cgroup.*failed.*)$/{ gsub(/\:/,"",$0); print $0 }' |
+		journalctl --full --all --no-pager --no-hostname --since "${since}" | awk '/^.*systemd\[1\]\:.*(CREDENTIALS|NAMESPACE|BPF.*cgroup.*failed.*)$/{ gsub(/\:/,"",$0); print $0 }' |
 			sed -E 's/^.*\s(systemd\-[a-z]+|[a-z-]+)\.service.*$/\1/g' | sed -E '/^.*\[[0-9]+\].*$/d' | sort -u
 	))
-	local forced="^(Private|Protect|Restrict|NoNewPrivileges|ReadWrite|MemoryDeny|SystemCall|IPAddressDeny|LockPersonality)"
-	local nicely="^(Private|Protect|Restrict)"
+	local forced="^(ImportCredential|Private|Protect|Restrict|NoNewPrivileges|ReadWrite|MemoryDeny|SystemCall|IPAddressDeny|LockPersonality)"
+	local nicely="^(ImportCredential|Private|Protect|Restrict)"
 	#
 	if journalctl --full --all --no-pager --no-hostname --since "${since}" | egrep --quiet -- 'BPF.*failed'; then
 		filter=${forced}
