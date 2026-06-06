@@ -39,7 +39,7 @@ ConditionPathExists=/usr/lib/systemd/system/sssd.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStartPre=/bin/sh -c '/usr/bin/grep --invert-match -- ^CapabilityBoundingSet /usr/lib/systemd/system/sssd.service > /etc/systemd/system/sssd.service'
+ExecStartPre=/bin/sh -c '/usr/bin/grep --extended-regexp --invert-match -- "^(CapabilityBoundingSet|SecureBits)" /usr/lib/systemd/system/sssd.service > /etc/systemd/system/sssd.service'
 ExecStartPre=/usr/bin/systemctl daemon-reload
 ExecStart=/usr/bin/systemctl start -- sssd.service
 
