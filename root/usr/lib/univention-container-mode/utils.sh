@@ -79,7 +79,7 @@ function ifSystemd() { # ifSystemd: void
 }
 #
 function UniventionServiceUnits() { # UniventionServiceUnits: void
-	systemctl list-units --no-pager --no-legend --type service --state loaded --all | awk '/univention/{ print $1 }' |
+	systemctl list-units --plain --no-legend --no-pager --type service --state loaded --all | awk '/univention/{ print $1 }' |
 		egrep --invert-match -- "^(univention-container-mode|univention-welcome-screen|.*@.service$)"
 }
 #
@@ -92,7 +92,7 @@ function UniventionDefaultTimers() { # UniventionDefaultTimers: void
 }
 #
 function UniventionPreInstalledRoleCheck() { # UniventionPreInstalledRoleCheck: void
-	systemctl list-units --state start --type service --no-pager --no-legend |
+	systemctl list-units --plain --no-legend --no-pager --type service --state start |
 		egrep --quiet -- univention-container-mode-pre-installed-role.*service
 }
 #

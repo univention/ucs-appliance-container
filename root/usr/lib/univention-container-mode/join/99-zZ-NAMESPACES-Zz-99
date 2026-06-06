@@ -69,7 +69,7 @@ UniventionFixServiceUnitNamespace ${units[@]}
 #
 # start/restart failed service unit(s)
 for stat in start restart; do
-	systemctl list-units --no-pager --no-legend --state failed --type service | awk '/[[:alnum:]].*failed/{ if( $1 ~ /^[[:alnum:]]/ ) { print $1 } else { print $2 } }' |
+	systemctl list-units --plain --no-legend --no-pager --type service --state failed | awk '/[[:alnum:]].*failed/{ if( $1 ~ /^[[:alnum:]]/ ) { print $1 } else { print $2 } }' |
 		xargs --no-run-if-empty timeout 30 systemctl ${stat} -- >/dev/null 2>&1 || /bin/true
 done
 #

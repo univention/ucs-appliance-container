@@ -155,7 +155,7 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 	#
 	# stop force service unit(s)
 	for service in ${services[@]}; do
-		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
+		systemctl list-units --plain --no-legend --no-pager --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
 			systemctl stop --force -- ${service}.service
 			systemctl status --no-pager --no-legend -- ${service}.service || continue
 		}
@@ -303,7 +303,7 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 	#
 	# (re)start service unit(s)
 	for service in nslcd slapd samba; do
-		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
+		systemctl list-units --plain --no-legend --no-pager --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
 			systemctl start -- ${service}.service || systemctl restart -- ${service}.service
 			systemctl status --no-pager --no-legend -- ${service}.service || continue
 		}
@@ -332,7 +332,7 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 	#
 	# (re)start service unit(s)
 	for service in ${services[@]}; do
-		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
+		systemctl list-units --plain --no-legend --no-pager --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
 			systemctl start -- ${service}.service || systemctl restart -- ${service}.service || continue
 			systemctl status --no-pager --no-legend -- ${service}.service || continue
 		}
@@ -378,7 +378,7 @@ command -v ${tar} >/dev/null 2>&1 || UniventionInstallNoRecommends ${tar}
 	#
 	# (re)start service unit(s)
 	for service in ${services[@]}; do
-		systemctl list-units --no-pager --no-legend --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
+		systemctl list-units --plain --no-legend --no-pager --type service --state loaded | egrep --quiet -- ${service}.service || continue && {
 			systemctl start -- ${service}.service || systemctl restart -- ${service}.service || continue
 			systemctl status --no-pager --no-legend -- ${service}.service || continue
 		}
