@@ -403,6 +403,7 @@ RUN systemctl mask --                                             \
 RUN systemctl mask --                                             \
   systemd-networkd-wait-online.service                            \
           ifupdown-wait-online.service
+# systemd-firstboot.service ( ConditionVirtualization=!container )
 # systemd-timedated.service ( ConditionVirtualization=!container )
 # systemd-resolved          ( ConditionVirtualization=!container )
 # systemd-logind            ( ConditionVirtualization=!container )
