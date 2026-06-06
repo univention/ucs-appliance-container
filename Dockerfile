@@ -291,6 +291,11 @@ RUN \
   ${APT} autoremove;                                              \
   ${APT} clean
 
+# make sure we have the initial command to start the container
+# OCI runtime create failed: /bin/systemd no such file or directory
+RUN test -e /bin/systemd ||                                       \
+  ln --symbolic --force /lib/systemd/systemd /bin/systemd
+
 # set different repository online server by --build-arg UPDATES + PROTOCL
 ARG UPDATES="updates.software-univention.de"
 ARG PROTOCL="https://"
