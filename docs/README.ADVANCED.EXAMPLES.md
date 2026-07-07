@@ -21,10 +21,17 @@ Basic example for apparmor security option:
 ```bash
 apt install apparmor-utils curl
 
-mkdir --parents /etc/apparmor.d/{containers,abstractions} && curl \
+mkdir --parents /etc/apparmor.d/{containers,abstractions}
+
+curl \
   --silent \
-  --location https://raw.githubusercontent.com/lxc/lxc/master/config/apparmor/abstractions/container-base \
+  --location https://raw.githubusercontent.com/lxc/lxc/main/config/apparmor/abstractions/container-base.in \
   --output /etc/apparmor.d/abstractions/container-base
+
+curl \
+  --silent \
+  --location https://raw.githubusercontent.com/lxc/lxc/main/config/apparmor/container-rules \
+  --output /etc/apparmor.d/abstractions/container-rules
 
 touch \
   /etc/apparmor.d/local/univention-corporate-server \
@@ -35,6 +42,7 @@ cat << EOF > /etc/apparmor.d/containers/univention-corporate-server
 
 profile univention-corporate-server flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/container-base>
+  #include <abstractions/container-rules>
 
   ptrace (trace,read,tracedby,readby) peer=univention-corporate-server,
 
@@ -47,15 +55,15 @@ profile univention-corporate-server flags=(attach_disconnected,mediate_deleted) 
   mount fstype=rpc_pipefs,
 
   # systemd PrivateTmp
-  mount options=(rw,rbind) -> **,
-  mount options=(rw,make-slave) -> **,
-  mount options=(rw,make-rslave) -> **,
-  mount options=(rw,make-shared) -> **,
-  mount options=(rw,make-rshared) -> **,
-  mount options=(rw,make-private) -> **,
-  mount options=(rw,make-rprivate) -> **,
-  mount options=(rw,make-unbindable) -> **,
-  mount options=(rw,make-runbindable) -> **,
+  mount options=(rw,rbind) -> /**,
+  mount options=(rw,make-slave) -> /**,
+  mount options=(rw,make-rslave) -> /**,
+  mount options=(rw,make-shared) -> /**,
+  mount options=(rw,make-rshared) -> /**,
+  mount options=(rw,make-private) -> /**,
+  mount options=(rw,make-rprivate) -> /**,
+  mount options=(rw,make-unbindable) -> /**,
+  mount options=(rw,make-runbindable) -> /**,
 
   #include <local/univention-corporate-server>
 }
