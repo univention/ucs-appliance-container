@@ -2,6 +2,8 @@ ARG IMAGE=univention/univention-corporate-server
 ARG TAG=latest
 FROM ${IMAGE}:${TAG} AS build
 
+ARG APT="apt-get --no-install-recommends -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false -o Acquire::Max-FutureTime=31536000 -o DPkg::Options::=--force-confold -o DPkg::Options::=--force-overwrite -o DPkg::Options::=--force-overwrite-dir --trivial-only=no --assume-yes --quiet=1"
+
 # init Acquire User Agent for container build
 ARG VERSION=0.0-0
 ARG CICD=PRODUCTION
@@ -39,8 +41,29 @@ RUN /bin/bash -c '                                                \
   /etc/apt/apt.conf.d/55user_agent'
 
 # fix slapd for any directory node, don't try to start this service unit while docker build
-RUN test ${role} = member ||                                      \
-  ln --symbolic --force /bin/true /etc/init.d/slapd || /bin/true
+RUN <<EOR
+if test ${role} != member; then
+	${APT} update
+	package=slapd
+	# get package, max 3 times ( connection timeout to repository mirror server )
+	cd /tmp && for i in $(seq 3); do
+		apt-get download ${package} && break || sleep 60
+	done
+	# get package full name
+	BuildPackage=$(ls -1 ${package}*deb)
+	# extract and check postinst file
+	dpkg-deb --raw-extract ${BuildPackage} ${package}
+
+	if grep -E -- "^/etc/init.d/${package}" ${package}/DEBIAN/postinst; then
+		test -d /etc/init.d || install -d /etc/init.d
+		ln --symbolic --force /bin/true /etc/init.d/${package}
+	else
+		ln --symbolic --force /bin/true /usr/bin/deb-systemd-invoke
+	fi
+
+	${APT} install ${package}; ${APT} --reinstall install init-system-helpers
+fi
+EOR
 
 # pre installed role=${role}, add non-container app(s) and fix missing /etc/apt/mirror.url
 RUN --mount=type=cache,target=/var/cache/apt/archives             \
